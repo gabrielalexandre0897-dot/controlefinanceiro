@@ -269,6 +269,7 @@ cols_despesas = st.columns(num_cols)
 # ---> Coluna 1: Contas Fixas <---
 with cols_despesas[0]:
     st.subheader("🏠 Contas Fixas")
+    st.caption("Aparecem em todos os meses")
     st.markdown("---")
 
     for conta in st.session_state.contas_fixas:
