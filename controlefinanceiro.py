@@ -64,7 +64,8 @@ def salvar_dados():
         "contas_fixas": st.session_state.contas_fixas,
         "pagamentos_fixas": st.session_state.pagamentos_fixas,
         "cartoes": st.session_state.cartoes,
-        "compras_cartao": st.session_state.compras_cartao
+        "compras_cartao": st.session_state.compras_cartao,
+        "antecipacoes": st.session_state.get("antecipacoes", {})
     }
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=4)
@@ -79,6 +80,7 @@ if 'dados_iniciados' not in st.session_state:
         st.session_state.pagamentos_fixas = dados_salvos.get("pagamentos_fixas", {})
         st.session_state.cartoes = dados_salvos.get("cartoes", [{"id": "c1", "nome": "Cartão Dia 5"}, {"id": "c2", "nome": "Cartão Dia 20"}])
         st.session_state.compras_cartao = dados_salvos.get("compras_cartao", [])
+        st.session_state.antecipacoes = dados_salvos.get("antecipacoes", {})
     else:
         st.session_state.salario_fixo = 0.0
         st.session_state.rendas_extras = []
@@ -89,6 +91,7 @@ if 'dados_iniciados' not in st.session_state:
             {"id": "c2", "nome": "Cartão Dia 20"}
         ]
         st.session_state.compras_cartao = []
+        st.session_state.antecipacoes = {}
         
     hoje = datetime.now()
     st.session_state.mes_view = f"{hoje.year:04d}-{hoje.month:02d}"
@@ -102,7 +105,6 @@ with st.sidebar:
     
     # --- 1. Adicionar Nova Conta / Dívida ---
     with st.expander("➕ Adicionar Nova Conta/Dívida", expanded=True):
-        # Montar lista de destinos
         opcoes_destino = ["🏠 Contas Fixas"] + [f"💳 {c['nome']}" for c in st.session_state.cartoes]
         destino_selecionado = st.selectbox("Selecione o Destino", opcoes_destino)
         
@@ -110,7 +112,6 @@ with st.sidebar:
             desc_item = st.text_input("Descrição (Ex: Mercado, Aluguel)")
             val_item = st.number_input("Valor Total (R$)", min_value=0.0, step=10.0)
             
-            # Se for cartão, libera opção de parcelas e recorrente
             is_cartao = destino_selecionado != "🏠 Contas Fixas"
             
             if is_cartao:
@@ -124,14 +125,12 @@ with st.sidebar:
             
             if btn_add and desc_item and val_item > 0:
                 if not is_cartao:
-                    # Lançar em Contas Fixas
                     st.session_state.contas_fixas.append({
                         "id": str(uuid.uuid4()),
                         "desc": desc_item,
                         "valor": val_item
                     })
                 else:
-                    # Encontrar o ID do cartão selecionado
                     nome_cartao_limpo = destino_selecionado.replace("💳 ", "")
                     cartao_obj = next((c for c in st.session_state.cartoes if c['nome'] == nome_cartao_limpo), None)
                     
@@ -195,6 +194,9 @@ for compra in st.session_state.compras_cartao:
     diferenca_meses = diff_months(mes_view, compra.get('mes_inicio', mes_view))
     is_rec = compra.get('recorrente', False)
     
+    # Verificar antecipações salvas
+    qtd_antecipadas = st.session_state.antecipacoes.get(compra['id'], 0)
+    
     if is_rec:
         if diferenca_meses >= 0:
             despesas_cartao_mes.append({
@@ -208,9 +210,9 @@ for compra in st.session_state.compras_cartao:
                 'recorrente': True
             })
     else:
-        parcelas_qtd = compra.get('parcelas', 1)
+        parcelas_qtd = compra.get('parcelas', 1) - qtd_antecipadas
         if 0 <= diferenca_meses < parcelas_qtd:
-            valor_parcela = compra['valor_total'] / parcelas_qtd
+            valor_parcela = compra['valor_total'] / compra.get('parcelas', 1)
             despesas_cartao_mes.append({
                 'id': compra['id'],
                 'cartao_id': compra['cartao_id'],
@@ -229,7 +231,6 @@ saldo_projetado = total_receitas - total_despesas_geral
 
 # --- TELA PRINCIPAL ---
 
-# Cabeçalho e Navegação
 col_head1, col_head2 = st.columns([4, 1])
 with col_head1:
     st.title("💸 Meu Controle Financeiro")
@@ -253,16 +254,14 @@ with col_nav3:
 
 st.divider()
 
-# Painel de Resumo
 col_res1, col_res2, col_res3, col_res4 = st.columns(4)
 col_res1.metric("💰 Receitas Totais", f"R$ {total_receitas:.2f}")
 col_res2.metric("📉 Despesas Pendentes", f"R$ {despesas_pendentes_geral:.2f}", delta=f"- R$ {total_fixas_pagas:.2f} pagas", delta_color="inverse")
 col_res3.metric("✅ Contas Pagas (Mês)", f"R$ {total_fixas_pagas:.2f}")
-col_res4.metric("💲 Saldo Projetado Libre", f"R$ {saldo_projetado:.2f}")
+col_res4.metric("💲 Saldo Projetado Livre", f"R$ {saldo_projetado:.2f}")
 
 st.divider()
 
-# Listagem de Contas e Cartões
 st.header("🛒 Visualização de Contas do Mês")
 
 num_cols = 1 + len(st.session_state.cartoes)
@@ -321,9 +320,18 @@ for idx, cartao in enumerate(st.session_state.cartoes):
             
             with c_edit:
                 with st.expander(f"✏️ {desp['desc']}{texto_parcela} - R$ {desp['valor_parcela']:.2f}"):
+                    compra_original = next((c for c in st.session_state.compras_cartao if c['id'] == desp['id']), None)
+                    
+                    if compra_original and not desp['recorrente'] and desp['total_parcelas'] > 1:
+                        st.caption("⚡ Opção de Antecipação:")
+                        if st.button(f"🚀 Antecipar +1 Parcela no Mês Atual", key=f"antecipa_{desp['id']}"):
+                            st.session_state.antecipacoes[desp['id']] = st.session_state.antecipacoes.get(desp['id'], 0) + 1
+                            st.toast("1 Parcela antecipada e quitada do futuro!", icon="🚀")
+                            st.rerun()
+                        st.divider()
+
                     with st.form(f"form_edit_compra_{desp['id']}"):
                         novo_desc = st.text_input("Editar Descrição", value=desp['desc'])
-                        compra_original = next((c for c in st.session_state.compras_cartao if c['id'] == desp['id']), None)
                         
                         val_atual_total = compra_original['valor_total'] if compra_original else desp['valor_total']
                         parc_atual_total = compra_original['parcelas'] if compra_original else desp['total_parcelas']
@@ -351,24 +359,30 @@ for idx, cartao in enumerate(st.session_state.cartoes):
 
 st.divider()
 
-# --- Seção 3: Exportar para WhatsApp (Somente Cartões) ---
+# --- Seção 3: Exportar para WhatsApp ---
 st.header("📱 Exportar Resumo do Mês (Cartões)")
 st.caption("Clique no ícone de 'Copiar' no canto superior direito da caixa abaixo para enviar no WhatsApp.")
 
 texto_export = ""
 
 for cartao in st.session_state.cartoes:
-    texto_export += f"{cartao['nome']}:\n\n"
-    
     despesas_deste = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
-    total_deste = sum(d['valor_parcela'] for d in despesas_deste)
     
-    if not despesas_deste:
-        texto_export += "Nenhuma despesa neste mês.\n"
-    else:
+    if despesas_deste:
+        texto_export += f"{cartao['nome']}:\n\n"
+        total_deste = sum(d['valor_parcela'] for d in despesas_deste)
+        
         for d in despesas_deste:
-            texto_export += f"o   {d['desc']}: R${d['valor_parcela']:.2f}\n".replace('.', ',')
+            if not d['recorrente'] and d['total_parcelas'] > 1:
+                tag_parc = f" ({d['parcela_atual']}/{d['total_parcelas']})"
+            else:
+                tag_parc = ""
+                
+            texto_export += f"o   {d['desc']}{tag_parc}: R${d['valor_parcela']:.2f}\n".replace('.', ',')
             
-    texto_export += f"\nTotal {cartao['nome']}: R${total_deste:.2f}\n\n".replace('.', ',')
+        texto_export += f"\nTotal {cartao['nome']}: R${total_deste:.2f}\n\n".replace('.', ',')
 
-st.code(texto_export.strip(), language="text")
+if not texto_export.strip():
+    st.code("Nenhum cartão possui despesas registradas para este mês.", language="text")
+else:
+    st.code(texto_export.strip(), language="text")
