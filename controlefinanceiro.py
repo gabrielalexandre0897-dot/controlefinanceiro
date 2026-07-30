@@ -25,7 +25,7 @@ if not st.session_state.logged_in:
                 st.rerun()
             else:
                 st.error("Usuário ou senha incorretos!")
-    st.stop() # Para a execução do app aqui se não estiver logado
+    st.stop()
 
 # --- Funções Auxiliares de Data ---
 def add_months(date_str, num_months):
@@ -97,16 +97,13 @@ if 'dados_iniciados' not in st.session_state:
 mes_view = st.session_state.mes_view
 
 # --- Lógica de Filtro e Cálculos do Mês Selecionado ---
-# 1. Rendas (Salário fixo agora é global)
 rendas_mes = [r for r in st.session_state.rendas_extras if r['mes'] == mes_view]
 total_receitas = st.session_state.salario_fixo + sum(r['valor'] for r in rendas_mes)
 
-# 2. Contas Fixas e Pagamentos
 total_fixas = sum(c['valor'] for c in st.session_state.contas_fixas)
 total_fixas_pagas = sum(c['valor'] for c in st.session_state.contas_fixas if st.session_state.pagamentos_fixas.get(f"{mes_view}_{c['id']}", False))
 total_fixas_pendentes = total_fixas - total_fixas_pagas
 
-# 3. Despesas de Cartão
 despesas_cartao_mes = []
 for compra in st.session_state.compras_cartao:
     diferenca_meses = diff_months(mes_view, compra['mes_inicio'])
@@ -123,7 +120,6 @@ for compra in st.session_state.compras_cartao:
 
 total_cartoes = sum(d['valor_parcela'] for d in despesas_cartao_mes)
 
-# --- Métricas Finais ---
 total_despesas_geral = total_fixas + total_cartoes
 despesas_pendentes_geral = total_fixas_pendentes + total_cartoes
 saldo_projetado = total_receitas - total_despesas_geral
@@ -133,7 +129,7 @@ col_head1, col_head2 = st.columns([4, 1])
 with col_head1:
     st.title("💸 Meu Controle Financeiro")
 with col_head2:
-    st.write("") # Espaçamento
+    st.write("") 
     if st.button("💾 Salvar Progresso", use_container_width=True, type="primary"):
         salvar_dados()
         st.toast('Progresso salvo com sucesso!', icon='✅')
@@ -186,7 +182,7 @@ with st.expander("💵 Minhas Rendas (Clique para expandir/ocultar)", expanded=F
             c1, c2 = st.columns([4, 1])
             c1.write(f"**{renda['desc']}**: R$ {renda['valor']:.2f}")
             if c2.button("❌", key=f"del_renda_{renda['id']}"):
-                st.session_state.rendas_extras = [r for r in st.session_state.rendas_extras if r['id'] != renda['id আলোচন']
+                st.session_state.rendas_extras = [r for r in st.session_state.rendas_extras if r['id'] != renda['id']]
                 st.rerun()
 
 st.divider()
