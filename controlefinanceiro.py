@@ -8,6 +8,42 @@ import os
 # Configuração da página
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
 
+# --- Estilização CSS para deixar a interface ultra compacta (justinha) ---
+st.markdown("""
+<style>
+    /* Reduz espaço vertical padrão entre blocos e elementos */
+    .stMainBlockContainer {
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+    }
+    div[data-testid="stVerticalBlock"] > div {
+        gap: 0.3rem !important;
+    }
+    /* Deixa os expanders de edição mais finos */
+    .stExpander {
+        margin-bottom: 0px !important;
+        border-radius: 6px !important;
+    }
+    .stExpander > div:first-child {
+        padding-top: 0.2rem !important;
+        padding-bottom: 0.2rem !important;
+        min-height: 2.2rem !important;
+    }
+    /* Compacta a altura dos botões X */
+    div[data-testid="stButton"] > button {
+        padding: 0.2rem 0.5rem !important;
+        min-height: 2.2rem !important;
+        height: 2.2rem !important;
+        margin: 0px !important;
+    }
+    /* Compacta os checkboxes das contas fixas */
+    div[data-testid="stCheckbox"] {
+        padding-top: 0.2rem !important;
+        padding-bottom: 0.2rem !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # --- 1. Sistema de Login ---
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -270,10 +306,13 @@ cols_despesas = st.columns(num_cols)
 with cols_despesas[0]:
     st.subheader("🏠 Contas Fixas")
     st.caption("Aparecem em todos os meses")
+    
+    st.write("") 
+    st.write("")
     st.markdown("---")
 
     for conta in st.session_state.contas_fixas:
-        c_chk, c_del = st.columns([4, 1])
+        c_chk, c_del = st.columns([5, 1])
         chave_pagamento = f"{mes_view}_{conta['id']}"
         
         is_pago = st.session_state.pagamentos_fixas.get(chave_pagamento, False)
@@ -368,7 +407,6 @@ for cartao in st.session_state.cartoes:
     despesas_deste = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
     
     if despesas_deste:
-        # Adiciona o asterisco em volta do nome do cartão (para negrito no WhatsApp) e remove a linha em branco abaixo dele
         texto_export += f"*{cartao['nome']}:*\n"
         total_deste = sum(d['valor_parcela'] for d in despesas_deste)
         
