@@ -100,23 +100,41 @@ mes_view = st.session_state.mes_view
 rendas_mes = [r for r in st.session_state.rendas_extras if r['mes'] == mes_view]
 total_receitas = st.session_state.salario_fixo + sum(r['valor'] for r in rendas_mes)
 
+# Contas fixas repetem e são calculadas em todos os meses
 total_fixas = sum(c['valor'] for c in st.session_state.contas_fixas)
 total_fixas_pagas = sum(c['valor'] for c in st.session_state.contas_fixas if st.session_state.pagamentos_fixas.get(f"{mes_view}_{c['id']}", False))
 total_fixas_pendentes = total_fixas - total_fixas_pagas
 
+# Despesas de Cartão (Parceladas ou Recorrentes / Fixas)
 despesas_cartao_mes = []
 for compra in st.session_state.compras_cartao:
     diferenca_meses = diff_months(mes_view, compra['mes_inicio'])
-    if 0 <= diferenca_meses < compra['parcelas']:
-        valor_parcela = compra['valor_total'] / compra['parcelas']
-        despesas_cartao_mes.append({
-            'id': compra['id'],
-            'cartao_id': compra['cartao_id'],
-            'desc': compra['desc'],
-            'valor_parcela': valor_parcela,
-            'parcela_atual': diferenca_meses + 1,
-            'total_parcelas': compra['parcelas']
-        })
+    
+    if compra.get('recorrente', False):
+        if diferenca_meses >= 0:
+            despesas_cartao_mes.append({
+                'id': compra['id'],
+                'cartao_id': compra['cartao_id'],
+                'desc': compra['desc'],
+                'valor_total': compra['valor_total'],
+                'valor_parcela': compra['valor_total'],
+                'parcela_atual': 1,
+                'total_parcelas': 1,
+                'recorrente': True
+            })
+    else:
+        if 0 <= diferenca_meses < compra['parcelas']:
+            valor_parcela = compra['valor_total'] / compra['parcelas']
+            despesas_cartao_mes.append({
+                'id': compra['id'],
+                'cartao_id': compra['cartao_id'],
+                'desc': compra['desc'],
+                'valor_total': compra['valor_total'],
+                'valor_parcela': valor_parcela,
+                'parcela_atual': diferenca_meses + 1,
+                'total_parcelas': compra['parcelas'],
+                'recorrente': False
+            })
 
 total_cartoes = sum(d['valor_parcela'] for d in despesas_cartao_mes)
 
@@ -204,6 +222,7 @@ cols_despesas = st.columns(num_cols)
 # ---> Coluna 1: Contas Fixas <---
 with cols_despesas[0]:
     st.subheader("🏠 Contas Fixas")
+    st.caption("Aparecem em todos os meses")
     
     with st.form("form_fixas", clear_on_submit=True):
         desc_fixa = st.text_input("Nova Conta Fixa")
@@ -247,10 +266,12 @@ for idx, cartao in enumerate(st.session_state.cartoes):
         st.markdown("---")
         
         with st.form(f"form_cartao_{cartao['id']}", clear_on_submit=True):
-            desc_cartao = st.text_input("Descrição da Compra")
+            desc_cartao = st.text_input("Descrição do Gasto")
             c_val, c_parc = st.columns(2)
-            val_cartao = c_val.number_input("Valor Total (R$)", min_value=0.0, step=10.0)
-            parc_cartao = c_parc.number_input("Parcelas", min_value=1, step=1, value=1)
+            val_cartao = c_val.number_input("Valor (R$)", min_value=0.0, step=10.0)
+            
+            is_recorrente = st.checkbox("Gasto Recorrente (Fixo todo mês)")
+            parc_cartao = c_parc.number_input("Parcelas", min_value=1, step=1, value=1, disabled=is_recorrente)
             
             btn_add_cartao_desp = st.form_submit_button("Adicionar")
             if btn_add_cartao_desp and desc_cartao and val_cartao > 0:
@@ -259,7 +280,8 @@ for idx, cartao in enumerate(st.session_state.cartoes):
                     "cartao_id": cartao["id"],
                     "desc": desc_cartao,
                     "valor_total": val_cartao,
-                    "parcelas": parc_cartao,
+                    "parcelas": 1 if is_recorrente else parc_cartao,
+                    "recorrente": is_recorrente,
                     "mes_inicio": mes_view
                 })
                 st.rerun()
@@ -267,8 +289,37 @@ for idx, cartao in enumerate(st.session_state.cartoes):
         despesas_deste_cartao_neste_mes = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
         
         for desp in despesas_deste_cartao_neste_mes:
+            # Opção de Edição Rápida
+            with st.expander(f"✏️ Editar: {desp['desc']}"):
+                with st.form(f"form_edit_compra_{desp['id']}"):
+                    novo_desc = st.text_input("Nova Descrição", value=desp['desc'])
+                    
+                    compra_original = next((c for c in st.session_state.compras_cartao if c['id'] == desp['id']), None)
+                    
+                    val_atual_total = compra_original['valor_total'] if compra_original else desp['valor_total']
+                    parc_atual_total = compra_original['parcelas'] if compra_original else desp['total_parcelas']
+                    rec_atual = compra_original.get('recorrente', False) if compra_original else desp['recorrente']
+                    
+                    novo_valor_total = st.number_input("Novo Valor Total (R$)", min_value=0.0, value=float(val_atual_total), step=10.0)
+                    novo_rec = st.checkbox("Recorrente (Fixo todo mês)", value=rec_atual)
+                    nova_qtd_parc = st.number_input("Nova Qtd Parcelas", min_value=1, step=1, value=int(parc_atual_total), disabled=novo_rec)
+                    
+                    btn_salvar_edicao = st.form_submit_button("Salvar Alterações")
+                    if btn_salvar_edicao and compra_original:
+                        compra_original['desc'] = novo_desc
+                        compra_original['valor_total'] = novo_valor_total
+                        compra_original['recorrente'] = novo_rec
+                        compra_original['parcelas'] = 1 if novo_rec else nova_qtd_parc
+                        st.rerun()
+
             c1, c2 = st.columns([4, 1])
-            texto_parcela = f" ({desp['parcela_atual']}/{desp['total_parcelas']})" if desp['total_parcelas'] > 1 else ""
+            if desp['recorrente']:
+                texto_parcela = " (Fixo)"
+            elif desp['total_parcelas'] > 1:
+                texto_parcela = f" ({desp['parcela_atual']}/{desp['total_parcelas']})"
+            else:
+                texto_parcela = ""
+                
             c1.write(f"{desp['desc']}{texto_parcela}: R$ {desp['valor_parcela']:.2f}")
             
             if c2.button("❌", key=f"del_desp_{desp['id']}"):
