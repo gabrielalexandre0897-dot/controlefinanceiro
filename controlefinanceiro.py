@@ -108,10 +108,13 @@ total_fixas_pendentes = total_fixas - total_fixas_pagas
 # Despesas de Cartão (Parceladas ou Recorrentes / Fixas)
 despesas_cartao_mes = []
 for compra in st.session_state.compras_cartao:
-    diferenca_meses = diff_months(mes_view, compra['mes_inicio'])
+    diferenca_meses = diff_months(mes_view, compra.get('mes_inicio', mes_view))
     
-    if compra.get('recorrente', False):
-        # Recorrente vale para o mês de início em diante
+    # Garantir verificação robusta de recorrente
+    is_rec = compra.get('recorrente', False)
+    
+    if is_rec:
+        # Se for recorrente e o mês visualizado for igual ou posterior ao mês de início
         if diferenca_meses >= 0:
             despesas_cartao_mes.append({
                 'id': compra['id'],
@@ -124,8 +127,9 @@ for compra in st.session_state.compras_cartao:
                 'recorrente': True
             })
     else:
-        if 0 <= diferenca_meses < compra['parcelas']:
-            valor_parcela = compra['valor_total'] / compra['parcelas']
+        parcelas_qtd = compra.get('parcelas', 1)
+        if 0 <= diferenca_meses < parcelas_qtd:
+            valor_parcela = compra['valor_total'] / parcelas_qtd
             despesas_cartao_mes.append({
                 'id': compra['id'],
                 'cartao_id': compra['cartao_id'],
@@ -133,7 +137,7 @@ for compra in st.session_state.compras_cartao:
                 'valor_total': compra['valor_total'],
                 'valor_parcela': valor_parcela,
                 'parcela_atual': diferenca_meses + 1,
-                'total_parcelas': compra['parcelas'],
+                'total_parcelas': parcelas_qtd,
                 'recorrente': False
             })
 
@@ -297,7 +301,6 @@ for idx, cartao in enumerate(st.session_state.cartoes):
             else:
                 texto_parcela = ""
 
-            # Linha compacta unindo o botão de expandir (edição) e o botão de excluir na mesma linha visual
             c_edit, c_del = st.columns([5, 1])
             
             with c_edit:
