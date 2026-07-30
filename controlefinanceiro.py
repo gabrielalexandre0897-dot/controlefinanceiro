@@ -98,11 +98,59 @@ mes_view = st.session_state.mes_view
 
 # --- BARRA LATERAL (Sidebar) ---
 with st.sidebar:
-    st.header("⚙️ Configurações & Rendas")
+    st.header("⚙️ Painel de Controle")
     
+    # --- 1. Adicionar Nova Conta / Dívida ---
+    with st.expander("➕ Adicionar Nova Conta/Dívida", expanded=True):
+        # Montar lista de destinos
+        opcoes_destino = ["🏠 Contas Fixas"] + [f"💳 {c['nome']}" for c in st.session_state.cartoes]
+        destino_selecionado = st.selectbox("Selecione o Destino", opcoes_destino)
+        
+        with st.form("form_add_geral", clear_on_submit=True):
+            desc_item = st.text_input("Descrição (Ex: Mercado, Aluguel)")
+            val_item = st.number_input("Valor Total (R$)", min_value=0.0, step=10.0)
+            
+            # Se for cartão, libera opção de parcelas e recorrente
+            is_cartao = destino_selecionado != "🏠 Contas Fixas"
+            
+            if is_cartao:
+                is_recorrente = st.checkbox("Gasto Recorrente (Fixo todo mês)")
+                parc_item = st.number_input("Parcelas", min_value=1, step=1, value=1, disabled=is_recorrente)
+            else:
+                is_recorrente = False
+                parc_item = 1
+                
+            btn_add = st.form_submit_button("Lançar Conta")
+            
+            if btn_add and desc_item and val_item > 0:
+                if not is_cartao:
+                    # Lançar em Contas Fixas
+                    st.session_state.contas_fixas.append({
+                        "id": str(uuid.uuid4()),
+                        "desc": desc_item,
+                        "valor": val_item
+                    })
+                else:
+                    # Encontrar o ID do cartão selecionado
+                    nome_cartao_limpo = destino_selecionado.replace("💳 ", "")
+                    cartao_obj = next((c for c in st.session_state.cartoes if c['nome'] == nome_cartao_limpo), None)
+                    
+                    if cartao_obj:
+                        st.session_state.compras_cartao.append({
+                            "id": str(uuid.uuid4()),
+                            "cartao_id": cartao_obj["id"],
+                            "desc": desc_item,
+                            "valor_total": val_item,
+                            "parcelas": 1 if is_recorrente else parc_item,
+                            "recorrente": is_recorrente,
+                            "mes_inicio": mes_view
+                        })
+                st.rerun()
+
+    # --- 2. Gerenciador de Rendas ---
     with st.expander("💵 Minhas Rendas", expanded=False):
-        st.subheader("Salário Fixo (Todos os meses)")
-        novo_salario = st.number_input("Valor do Salário (R$)", min_value=0.0, value=float(st.session_state.salario_fixo), step=100.0)
+        st.subheader("Salário Fixo")
+        novo_salario = st.number_input("Salário Mensal (R$)", min_value=0.0, value=float(st.session_state.salario_fixo), step=100.0)
         if novo_salario != st.session_state.salario_fixo:
             st.session_state.salario_fixo = novo_salario
             st.rerun()
@@ -112,7 +160,7 @@ with st.sidebar:
         with st.form("form_renda_extra", clear_on_submit=True):
             desc_renda = st.text_input("Descrição (Ex: Freela)")
             val_renda = st.number_input("Valor (R$)", min_value=0.0, step=50.0)
-            btn_add_renda = st.form_submit_button("Adicionar Renda Extra")
+            btn_add_renda = st.form_submit_button("Adicionar Renda")
             if btn_add_renda and desc_renda and val_renda > 0:
                 st.session_state.rendas_extras.append({"id": str(uuid.uuid4()), "mes": mes_view, "desc": desc_renda, "valor": val_renda})
                 st.rerun()
@@ -123,6 +171,15 @@ with st.sidebar:
             c1.write(f"**{renda['desc']}**: R$ {renda['valor']:.2f}")
             if c2.button("❌", key=f"del_renda_{renda['id']}"):
                 st.session_state.rendas_extras = [r for r in st.session_state.rendas_extras if r['id'] != renda['id']]
+                st.rerun()
+
+    # --- 3. Criar Novos Cartões ---
+    with st.expander("💳 Configurar Cartões", expanded=False):
+        with st.form("form_novo_cartao", clear_on_submit=True):
+            novo_nome_cartao = st.text_input("Nome do Cartão (ex: Cartão Dia 10)")
+            btn_add_cartao = st.form_submit_button("Criar Cartão")
+            if btn_add_cartao and novo_nome_cartao:
+                st.session_state.cartoes.append({"id": str(uuid.uuid4()), "nome": novo_nome_cartao})
                 st.rerun()
 
 # --- Lógica de Filtro e Cálculos ---
@@ -170,7 +227,9 @@ total_despesas_geral = total_fixas + total_cartoes
 despesas_pendentes_geral = total_fixas_pendentes + total_cartoes
 saldo_projetado = total_receitas - total_despesas_geral
 
-# --- Cabeçalho e Navegação ---
+# --- TELA PRINCIPAL ---
+
+# Cabeçalho e Navegação
 col_head1, col_head2 = st.columns([4, 1])
 with col_head1:
     st.title("💸 Meu Controle Financeiro")
@@ -194,25 +253,17 @@ with col_nav3:
 
 st.divider()
 
-# --- Painel de Resumo ---
+# Painel de Resumo
 col_res1, col_res2, col_res3, col_res4 = st.columns(4)
 col_res1.metric("💰 Receitas Totais", f"R$ {total_receitas:.2f}")
 col_res2.metric("📉 Despesas Pendentes", f"R$ {despesas_pendentes_geral:.2f}", delta=f"- R$ {total_fixas_pagas:.2f} pagas", delta_color="inverse")
 col_res3.metric("✅ Contas Pagas (Mês)", f"R$ {total_fixas_pagas:.2f}")
-col_res4.metric("💲 Saldo Projetado Livre", f"R$ {saldo_projetado:.2f}")
+col_res4.metric("💲 Saldo Projetado Libre", f"R$ {saldo_projetado:.2f}")
 
 st.divider()
 
-# --- Seção 2: Despesas (Contas Fixas e Cartões) ---
-st.header("🛒 Minhas Contas e Cartões")
-
-with st.expander("➕ Gerenciar Cartões (Adicionar novo cartão)"):
-    with st.form("form_novo_cartao", clear_on_submit=True):
-        novo_nome_cartao = st.text_input("Nome do Cartão (ex: Cartão Dia 10)")
-        btn_add_cartao = st.form_submit_button("Criar Cartão")
-        if btn_add_cartao and novo_nome_cartao:
-            st.session_state.cartoes.append({"id": str(uuid.uuid4()), "nome": novo_nome_cartao})
-            st.rerun()
+# Listagem de Contas e Cartões
+st.header("🛒 Visualização de Contas do Mês")
 
 num_cols = 1 + len(st.session_state.cartoes)
 cols_despesas = st.columns(num_cols)
@@ -221,14 +272,7 @@ cols_despesas = st.columns(num_cols)
 with cols_despesas[0]:
     st.subheader("🏠 Contas Fixas")
     st.caption("Aparecem em todos os meses")
-    
-    with st.form("form_fixas", clear_on_submit=True):
-        desc_fixa = st.text_input("Nova Conta Fixa")
-        val_fixa = st.number_input("Valor (R$)", min_value=0.0, step=10.0)
-        btn_add_fixa = st.form_submit_button("Adicionar")
-        if btn_add_fixa and desc_fixa and val_fixa > 0:
-            st.session_state.contas_fixas.append({"id": str(uuid.uuid4()), "desc": desc_fixa, "valor": val_fixa})
-            st.rerun()
+    st.markdown("---")
 
     for conta in st.session_state.contas_fixas:
         c_chk, c_del = st.columns([4, 1])
@@ -245,7 +289,7 @@ with cols_despesas[0]:
             st.session_state.contas_fixas = [c for c in st.session_state.contas_fixas if c['id'] != conta['id']]
             st.rerun()
             
-    st.markdown(f"**Total Mês: R$ {total_fixas:.2f}**")
+    st.markdown(f"**Total Fixas: R$ {total_fixas:.2f}**")
 
 # ---> Colunas 2+: Cartões <---
 for idx, cartao in enumerate(st.session_state.cartoes):
@@ -262,27 +306,6 @@ for idx, cartao in enumerate(st.session_state.cartoes):
                 st.rerun()
 
         st.markdown("---")
-        
-        with st.form(f"form_cartao_{cartao['id']}", clear_on_submit=True):
-            desc_cartao = st.text_input("Descrição do Gasto")
-            c_val, c_parc = st.columns(2)
-            val_cartao = c_val.number_input("Valor (R$)", min_value=0.0, step=10.0)
-            
-            is_recorrente = st.checkbox("Gasto Recorrente (Fixo todo mês)")
-            parc_cartao = c_parc.number_input("Parcelas", min_value=1, step=1, value=1, disabled=is_recorrente)
-            
-            btn_add_cartao_desp = st.form_submit_button("Adicionar")
-            if btn_add_cartao_desp and desc_cartao and val_cartao > 0:
-                st.session_state.compras_cartao.append({
-                    "id": str(uuid.uuid4()),
-                    "cartao_id": cartao["id"],
-                    "desc": desc_cartao,
-                    "valor_total": val_cartao,
-                    "parcelas": 1 if is_recorrente else parc_cartao,
-                    "recorrente": is_recorrente,
-                    "mes_inicio": mes_view
-                })
-                st.rerun()
 
         despesas_deste_cartao_neste_mes = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
         
