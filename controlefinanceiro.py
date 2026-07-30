@@ -8,38 +8,53 @@ import os
 # Configuração da página
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
 
-# --- Estilização CSS para deixar a interface ultra compacta (justinha) ---
+# --- Estilização CSS para Ajuste de Altura e Espaçamento Ultra Compacto ---
 st.markdown("""
 <style>
-    /* Reduz espaço vertical padrão entre blocos e elementos */
-    .stMainBlockContainer {
-        padding-top: 2rem !important;
-        padding-bottom: 2rem !important;
+    /* Compacta o contêiner geral da página */
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 1.5rem !important;
     }
+    
+    /* Zera os espaços verticais padrão do Streamlit entre os elementos */
     div[data-testid="stVerticalBlock"] > div {
-        gap: 0.3rem !important;
+        gap: 0.15rem !important;
     }
-    /* Deixa os expanders de edição mais finos */
+    .element-container {
+        margin-bottom: 0px !important;
+    }
+
+    /* Ajusta a altura e margens dos Expanders (Cartões) */
     .stExpander {
         margin-bottom: 0px !important;
-        border-radius: 6px !important;
+        border-radius: 4px !important;
     }
     .stExpander > div:first-child {
-        padding-top: 0.2rem !important;
-        padding-bottom: 0.2rem !important;
-        min-height: 2.2rem !important;
+        padding-top: 0.1rem !important;
+        padding-bottom: 0.1rem !important;
+        min-height: 2.1rem !important;
     }
-    /* Compacta a altura dos botões X */
+    
+    /* Compacta a altura das caixas de marcação (Contas Fixas) */
+    div[data-testid="stCheckbox"] {
+        padding-top: 0.1rem !important;
+        padding-bottom: 0.1rem !important;
+        min-height: 2.1rem !important;
+    }
+
+    /* Alinha a altura exata de todos os botões de exclusão ❌ */
     div[data-testid="stButton"] > button {
-        padding: 0.2rem 0.5rem !important;
-        min-height: 2.2rem !important;
-        height: 2.2rem !important;
+        padding: 0.1rem 0.4rem !important;
+        min-height: 2.1rem !important;
+        height: 2.1rem !important;
         margin: 0px !important;
     }
-    /* Compacta os checkboxes das contas fixas */
-    div[data-testid="stCheckbox"] {
-        padding-top: 0.2rem !important;
-        padding-bottom: 0.2rem !important;
+    
+    /* Ajuste para o divisor horizontal */
+    hr {
+        margin-top: 0.3rem !important;
+        margin-bottom: 0.5rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -307,8 +322,9 @@ with cols_despesas[0]:
     st.subheader("🏠 Contas Fixas")
     st.caption("Aparecem em todos os meses")
     
-    st.write("") 
-    st.write("")
+    # Campo idêntico ao dos cartões para garantir alinhamento perfeito do divisor hr
+    st.text_input("Ajuste Alinhamento", value="", disabled=True, key="dummy_alignment_input", label_visibility="hidden")
+    
     st.markdown("---")
 
     for conta in st.session_state.contas_fixas:
