@@ -25,7 +25,7 @@ st.markdown("""
         margin-bottom: 0px !important;
     }
 
-    /* Ajusta a altura e margens dos Expanders (Cartões) */
+    /* Ajusta a altura e margens dos Expanders */
     .stExpander {
         margin-bottom: 0px !important;
         border-radius: 4px !important;
@@ -320,7 +320,11 @@ cols_despesas = st.columns(num_cols)
 # ---> Coluna 1: Contas Fixas <---
 with cols_despesas[0]:
     st.subheader("🏠 Contas Fixas")
-    st.caption("Aparecem em todos os meses")
+    
+    # Caixa expansível equivalente ao "Opções do Cartão" para igualar perfeitamente a estrutura
+    with st.expander("📌 Informações"):
+        st.write("Contas fixas se repetem todos os meses.")
+
     st.markdown("---")
 
     for conta in st.session_state.contas_fixas:
@@ -345,7 +349,6 @@ for idx, cartao in enumerate(st.session_state.cartoes):
     with cols_despesas[idx + 1]:
         st.subheader(f"💳 {cartao['nome']}")
         
-        # Opções do cartão ocultas em um menu expansível simples para não empurrar a lista
         with st.expander("⚙️ Opções do Cartão"):
             novo_nome = st.text_input("Editar Nome:", value=cartao["nome"], key=f"edit_nome_{cartao['id']}")
             if novo_nome != cartao["nome"]:
