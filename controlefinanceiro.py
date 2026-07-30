@@ -69,7 +69,7 @@ def salvar_dados():
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=4)
 
-# --- Inicialização do Session State (Com carregamento) ---
+# --- Inicialização do Session State ---
 if 'dados_iniciados' not in st.session_state:
     dados_salvos = carregar_dados()
     if dados_salvos:
@@ -96,25 +96,49 @@ if 'dados_iniciados' not in st.session_state:
 
 mes_view = st.session_state.mes_view
 
-# --- Lógica de Filtro e Cálculos do Mês Selecionado ---
+# --- BARRA LATERAL (Sidebar) ---
+with st.sidebar:
+    st.header("⚙️ Configurações & Rendas")
+    
+    with st.expander("💵 Minhas Rendas", expanded=False):
+        st.subheader("Salário Fixo (Todos os meses)")
+        novo_salario = st.number_input("Valor do Salário (R$)", min_value=0.0, value=float(st.session_state.salario_fixo), step=100.0)
+        if novo_salario != st.session_state.salario_fixo:
+            st.session_state.salario_fixo = novo_salario
+            st.rerun()
+
+        st.divider()
+        st.subheader("Rendas Extras do Mês")
+        with st.form("form_renda_extra", clear_on_submit=True):
+            desc_renda = st.text_input("Descrição (Ex: Freela)")
+            val_renda = st.number_input("Valor (R$)", min_value=0.0, step=50.0)
+            btn_add_renda = st.form_submit_button("Adicionar Renda Extra")
+            if btn_add_renda and desc_renda and val_renda > 0:
+                st.session_state.rendas_extras.append({"id": str(uuid.uuid4()), "mes": mes_view, "desc": desc_renda, "valor": val_renda})
+                st.rerun()
+
+        rendas_mes = [r for r in st.session_state.rendas_extras if r['mes'] == mes_view]
+        for renda in rendas_mes:
+            c1, c2 = st.columns([4, 1])
+            c1.write(f"**{renda['desc']}**: R$ {renda['valor']:.2f}")
+            if c2.button("❌", key=f"del_renda_{renda['id']}"):
+                st.session_state.rendas_extras = [r for r in st.session_state.rendas_extras if r['id'] != renda['id']]
+                st.rerun()
+
+# --- Lógica de Filtro e Cálculos ---
 rendas_mes = [r for r in st.session_state.rendas_extras if r['mes'] == mes_view]
 total_receitas = st.session_state.salario_fixo + sum(r['valor'] for r in rendas_mes)
 
-# Contas fixas repetem e são calculadas em todos os meses
 total_fixas = sum(c['valor'] for c in st.session_state.contas_fixas)
 total_fixas_pagas = sum(c['valor'] for c in st.session_state.contas_fixas if st.session_state.pagamentos_fixas.get(f"{mes_view}_{c['id']}", False))
 total_fixas_pendentes = total_fixas - total_fixas_pagas
 
-# Despesas de Cartão (Parceladas ou Recorrentes / Fixas)
 despesas_cartao_mes = []
 for compra in st.session_state.compras_cartao:
     diferenca_meses = diff_months(mes_view, compra.get('mes_inicio', mes_view))
-    
-    # Garantir verificação robusta de recorrente
     is_rec = compra.get('recorrente', False)
     
     if is_rec:
-        # Se for recorrente e o mês visualizado for igual ou posterior ao mês de início
         if diferenca_meses >= 0:
             despesas_cartao_mes.append({
                 'id': compra['id'],
@@ -142,7 +166,6 @@ for compra in st.session_state.compras_cartao:
             })
 
 total_cartoes = sum(d['valor_parcela'] for d in despesas_cartao_mes)
-
 total_despesas_geral = total_fixas + total_cartoes
 despesas_pendentes_geral = total_fixas_pendentes + total_cartoes
 saldo_projetado = total_receitas - total_despesas_geral
@@ -177,36 +200,6 @@ col_res1.metric("💰 Receitas Totais", f"R$ {total_receitas:.2f}")
 col_res2.metric("📉 Despesas Pendentes", f"R$ {despesas_pendentes_geral:.2f}", delta=f"- R$ {total_fixas_pagas:.2f} pagas", delta_color="inverse")
 col_res3.metric("✅ Contas Pagas (Mês)", f"R$ {total_fixas_pagas:.2f}")
 col_res4.metric("💲 Saldo Projetado Livre", f"R$ {saldo_projetado:.2f}")
-
-st.write("") 
-
-# --- Seção 1: Entradas (Ocultável) ---
-with st.expander("💵 Minhas Rendas (Clique para expandir/ocultar)", expanded=False):
-    col_renda1, col_renda2 = st.columns(2)
-    with col_renda1:
-        st.subheader("Salário Fixo (Todos os meses)")
-        novo_salario = st.number_input("Valor do Salário (R$)", min_value=0.0, value=float(st.session_state.salario_fixo), step=100.0)
-        if novo_salario != st.session_state.salario_fixo:
-            st.session_state.salario_fixo = novo_salario
-            st.rerun()
-
-    with col_renda2:
-        st.subheader("Rendas Extras do Mês")
-        with st.form("form_renda_extra", clear_on_submit=True):
-            cols = st.columns([2, 1, 1])
-            desc_renda = cols[0].text_input("Descrição (Ex: Freela)")
-            val_renda = cols[1].number_input("Valor (R$)", min_value=0.0, step=50.0)
-            btn_add_renda = cols[2].form_submit_button("Adicionar")
-            if btn_add_renda and desc_renda and val_renda > 0:
-                st.session_state.rendas_extras.append({"id": str(uuid.uuid4()), "mes": mes_view, "desc": desc_renda, "valor": val_renda})
-                st.rerun()
-
-        for renda in rendas_mes:
-            c1, c2 = st.columns([4, 1])
-            c1.write(f"**{renda['desc']}**: R$ {renda['valor']:.2f}")
-            if c2.button("❌", key=f"del_renda_{renda['id']}"):
-                st.session_state.rendas_extras = [r for r in st.session_state.rendas_extras if r['id'] != renda['id']]
-                st.rerun()
 
 st.divider()
 
