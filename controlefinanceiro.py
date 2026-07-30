@@ -111,6 +111,7 @@ for compra in st.session_state.compras_cartao:
     diferenca_meses = diff_months(mes_view, compra['mes_inicio'])
     
     if compra.get('recorrente', False):
+        # Recorrente vale para o mês de início em diante
         if diferenca_meses >= 0:
             despesas_cartao_mes.append({
                 'id': compra['id'],
@@ -289,42 +290,42 @@ for idx, cartao in enumerate(st.session_state.cartoes):
         despesas_deste_cartao_neste_mes = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
         
         for desp in despesas_deste_cartao_neste_mes:
-            # Opção de Edição Rápida
-            with st.expander(f"✏️ Editar: {desp['desc']}"):
-                with st.form(f"form_edit_compra_{desp['id']}"):
-                    novo_desc = st.text_input("Nova Descrição", value=desp['desc'])
-                    
-                    compra_original = next((c for c in st.session_state.compras_cartao if c['id'] == desp['id']), None)
-                    
-                    val_atual_total = compra_original['valor_total'] if compra_original else desp['valor_total']
-                    parc_atual_total = compra_original['parcelas'] if compra_original else desp['total_parcelas']
-                    rec_atual = compra_original.get('recorrente', False) if compra_original else desp['recorrente']
-                    
-                    novo_valor_total = st.number_input("Novo Valor Total (R$)", min_value=0.0, value=float(val_atual_total), step=10.0)
-                    novo_rec = st.checkbox("Recorrente (Fixo todo mês)", value=rec_atual)
-                    nova_qtd_parc = st.number_input("Nova Qtd Parcelas", min_value=1, step=1, value=int(parc_atual_total), disabled=novo_rec)
-                    
-                    btn_salvar_edicao = st.form_submit_button("Salvar Alterações")
-                    if btn_salvar_edicao and compra_original:
-                        compra_original['desc'] = novo_desc
-                        compra_original['valor_total'] = novo_valor_total
-                        compra_original['recorrente'] = novo_rec
-                        compra_original['parcelas'] = 1 if novo_rec else nova_qtd_parc
-                        st.rerun()
-
-            c1, c2 = st.columns([4, 1])
             if desp['recorrente']:
                 texto_parcela = " (Fixo)"
             elif desp['total_parcelas'] > 1:
                 texto_parcela = f" ({desp['parcela_atual']}/{desp['total_parcelas']})"
             else:
                 texto_parcela = ""
-                
-            c1.write(f"{desp['desc']}{texto_parcela}: R$ {desp['valor_parcela']:.2f}")
+
+            # Linha compacta unindo o botão de expandir (edição) e o botão de excluir na mesma linha visual
+            c_edit, c_del = st.columns([5, 1])
             
-            if c2.button("❌", key=f"del_desp_{desp['id']}"):
-                st.session_state.compras_cartao = [c for c in st.session_state.compras_cartao if c['id'] != desp['id']]
-                st.rerun()
+            with c_edit:
+                with st.expander(f"✏️ {desp['desc']}{texto_parcela} - R$ {desp['valor_parcela']:.2f}"):
+                    with st.form(f"form_edit_compra_{desp['id']}"):
+                        novo_desc = st.text_input("Editar Descrição", value=desp['desc'])
+                        compra_original = next((c for c in st.session_state.compras_cartao if c['id'] == desp['id']), None)
+                        
+                        val_atual_total = compra_original['valor_total'] if compra_original else desp['valor_total']
+                        parc_atual_total = compra_original['parcelas'] if compra_original else desp['total_parcelas']
+                        rec_atual = compra_original.get('recorrente', False) if compra_original else desp['recorrente']
+                        
+                        novo_valor_total = st.number_input("Editar Valor Total (R$)", min_value=0.0, value=float(val_atual_total), step=10.0)
+                        novo_rec = st.checkbox("Recorrente (Fixo todo mês)", value=rec_atual, key=f"rec_{desp['id']}")
+                        nova_qtd_parc = st.number_input("Editar Qtd Parcelas", min_value=1, step=1, value=int(parc_atual_total), disabled=novo_rec, key=f"parc_{desp['id']}")
+                        
+                        btn_salvar_edicao = st.form_submit_button("Salvar Alterações")
+                        if btn_salvar_edicao and compra_original:
+                            compra_original['desc'] = novo_desc
+                            compra_original['valor_total'] = novo_valor_total
+                            compra_original['recorrente'] = novo_rec
+                            compra_original['parcelas'] = 1 if novo_rec else nova_qtd_parc
+                            st.rerun()
+
+            with c_del:
+                if st.button("❌", key=f"del_desp_{desp['id']}"):
+                    st.session_state.compras_cartao = [c for c in st.session_state.compras_cartao if c['id'] != desp['id']]
+                    st.rerun()
 
         total_cartao = sum(d['valor_parcela'] for d in despesas_deste_cartao_neste_mes)
         st.markdown(f"**Total Mês: R$ {total_cartao:.2f}**")
