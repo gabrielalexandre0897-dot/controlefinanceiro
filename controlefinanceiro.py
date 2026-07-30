@@ -8,7 +8,7 @@ import os
 # Configuração da página
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
 
-# --- Estilização CSS para Ajuste de Altura e Espaçamento Ultra Compacto ---
+# --- Estilização CSS para Alinhamento Perfeito e Espaçamento Justinho ---
 st.markdown("""
 <style>
     /* Compacta o contêiner geral da página */
@@ -51,10 +51,10 @@ st.markdown("""
         margin: 0px !important;
     }
     
-    /* Ajuste para o divisor horizontal */
+    /* Regra para ajustar divisores */
     hr {
-        margin-top: 0.3rem !important;
-        margin-bottom: 0.5rem !important;
+        margin-top: 0.2rem !important;
+        margin-bottom: 0.4rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -321,10 +321,6 @@ cols_despesas = st.columns(num_cols)
 with cols_despesas[0]:
     st.subheader("🏠 Contas Fixas")
     st.caption("Aparecem em todos os meses")
-    
-    # Campo idêntico ao dos cartões para garantir alinhamento perfeito do divisor hr
-    st.text_input("Ajuste Alinhamento", value="", disabled=True, key="dummy_alignment_input", label_visibility="hidden")
-    
     st.markdown("---")
 
     for conta in st.session_state.contas_fixas:
@@ -347,16 +343,19 @@ with cols_despesas[0]:
 # ---> Colunas 2+: Cartões <---
 for idx, cartao in enumerate(st.session_state.cartoes):
     with cols_despesas[idx + 1]:
+        st.subheader(f"💳 {cartao['nome']}")
         
-        novo_nome = st.text_input(f"Editar Nome:", value=cartao["nome"], key=f"edit_nome_{cartao['id']}")
-        if novo_nome != cartao["nome"]:
-            st.session_state.cartoes[idx]["nome"] = novo_nome
+        # Opções do cartão ocultas em um menu expansível simples para não empurrar a lista
+        with st.expander("⚙️ Opções do Cartão"):
+            novo_nome = st.text_input("Editar Nome:", value=cartao["nome"], key=f"edit_nome_{cartao['id']}")
+            if novo_nome != cartao["nome"]:
+                st.session_state.cartoes[idx]["nome"] = novo_nome
 
-        tem_dividas = any(c['cartao_id'] == cartao['id'] for c in st.session_state.compras_cartao)
-        if not tem_dividas:
-            if st.button("🗑️ Excluir Cartão", key=f"del_cartao_{cartao['id']}"):
-                st.session_state.cartoes.pop(idx)
-                st.rerun()
+            tem_dividas = any(c['cartao_id'] == cartao['id'] for c in st.session_state.compras_cartao)
+            if not tem_dividas:
+                if st.button("🗑️ Excluir Cartão", key=f"del_cartao_{cartao['id']}"):
+                    st.session_state.cartoes.pop(idx)
+                    st.rerun()
 
         st.markdown("---")
 
