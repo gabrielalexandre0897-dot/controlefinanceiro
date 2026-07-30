@@ -194,7 +194,6 @@ for compra in st.session_state.compras_cartao:
     diferenca_meses = diff_months(mes_view, compra.get('mes_inicio', mes_view))
     is_rec = compra.get('recorrente', False)
     
-    # Verificar antecipações salvas
     qtd_antecipadas = st.session_state.antecipacoes.get(compra['id'], 0)
     
     if is_rec:
@@ -369,7 +368,8 @@ for cartao in st.session_state.cartoes:
     despesas_deste = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
     
     if despesas_deste:
-        texto_export += f"{cartao['nome']}:\n\n"
+        # Adiciona o asterisco em volta do nome do cartão (para negrito no WhatsApp) e remove a linha em branco abaixo dele
+        texto_export += f"*{cartao['nome']}:*\n"
         total_deste = sum(d['valor_parcela'] for d in despesas_deste)
         
         for d in despesas_deste:
