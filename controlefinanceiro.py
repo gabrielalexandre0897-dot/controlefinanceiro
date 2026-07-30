@@ -2,9 +2,30 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import uuid
+import json
+import os
 
 # Configuração da página
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
+
+# --- 1. Sistema de Login ---
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    st.title("🔒 Acesso Restrito")
+    with st.form("login_form"):
+        usuario = st.text_input("Usuário")
+        senha = st.text_input("Senha", type="password")
+        submit = st.form_submit_button("Entrar")
+        
+        if submit:
+            if usuario == "Gabriel" and senha == "Gsa250619":
+                st.session_state.logged_in = True
+                st.rerun()
+            else:
+                st.error("Usuário ou senha incorretos!")
+    st.stop() # Para a execução do app aqui se não estiver logado
 
 # --- Funções Auxiliares de Data ---
 def add_months(date_str, num_months):
@@ -24,35 +45,61 @@ def get_month_name(date_str):
     y, m = map(int, date_str.split('-'))
     return f"{meses[m]} {y}"
 
-hoje = datetime.now()
-mes_atual_str = f"{hoje.year:04d}-{hoje.month:02d}"
+# --- 2. Sistema de Salvar/Carregar Dados ---
+DATA_FILE = "meus_dados_financeiros.json"
 
-# --- Inicialização do Session State ---
-if 'mes_view' not in st.session_state:
-    st.session_state.mes_view = mes_atual_str
-if 'salarios' not in st.session_state:
-    st.session_state.salarios = {}
-if 'rendas_extras' not in st.session_state:
-    st.session_state.rendas_extras = [] 
-if 'contas_fixas' not in st.session_state:
-    st.session_state.contas_fixas = []
-if 'pagamentos_fixas' not in st.session_state:
-    st.session_state.pagamentos_fixas = {} # Formato: {"YYYY-MM_id": True/False}
-if 'cartoes' not in st.session_state:
-    st.session_state.cartoes = [
-        {"id": "c1", "nome": "Cartão Dia 5"},
-        {"id": "c2", "nome": "Cartão Dia 20"}
-    ]
-if 'compras_cartao' not in st.session_state:
-    st.session_state.compras_cartao = []
+def carregar_dados():
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return None
+    return None
+
+def salvar_dados():
+    dados = {
+        "salario_fixo": st.session_state.salario_fixo,
+        "rendas_extras": st.session_state.rendas_extras,
+        "contas_fixas": st.session_state.contas_fixas,
+        "pagamentos_fixas": st.session_state.pagamentos_fixas,
+        "cartoes": st.session_state.cartoes,
+        "compras_cartao": st.session_state.compras_cartao
+    }
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=4)
+
+# --- Inicialização do Session State (Com carregamento) ---
+if 'dados_iniciados' not in st.session_state:
+    dados_salvos = carregar_dados()
+    if dados_salvos:
+        st.session_state.salario_fixo = dados_salvos.get("salario_fixo", 0.0)
+        st.session_state.rendas_extras = dados_salvos.get("rendas_extras", [])
+        st.session_state.contas_fixas = dados_salvos.get("contas_fixas", [])
+        st.session_state.pagamentos_fixas = dados_salvos.get("pagamentos_fixas", {})
+        st.session_state.cartoes = dados_salvos.get("cartoes", [{"id": "c1", "nome": "Cartão Dia 5"}, {"id": "c2", "nome": "Cartão Dia 20"}])
+        st.session_state.compras_cartao = dados_salvos.get("compras_cartao", [])
+    else:
+        st.session_state.salario_fixo = 0.0
+        st.session_state.rendas_extras = []
+        st.session_state.contas_fixas = []
+        st.session_state.pagamentos_fixas = {}
+        st.session_state.cartoes = [
+            {"id": "c1", "nome": "Cartão Dia 5"},
+            {"id": "c2", "nome": "Cartão Dia 20"}
+        ]
+        st.session_state.compras_cartao = []
+        
+    hoje = datetime.now()
+    st.session_state.mes_view = f"{hoje.year:04d}-{hoje.month:02d}"
+    st.session_state.dados_iniciados = True
 
 mes_view = st.session_state.mes_view
 
 # --- Lógica de Filtro e Cálculos do Mês Selecionado ---
-# 1. Rendas
-salario_mes = st.session_state.salarios.get(mes_view, 0.0)
+# 1. Rendas (Salário fixo agora é global)
 rendas_mes = [r for r in st.session_state.rendas_extras if r['mes'] == mes_view]
-total_receitas = salario_mes + sum(r['valor'] for r in rendas_mes)
+total_receitas = st.session_state.salario_fixo + sum(r['valor'] for r in rendas_mes)
 
 # 2. Contas Fixas e Pagamentos
 total_fixas = sum(c['valor'] for c in st.session_state.contas_fixas)
@@ -79,9 +126,18 @@ total_cartoes = sum(d['valor_parcela'] for d in despesas_cartao_mes)
 # --- Métricas Finais ---
 total_despesas_geral = total_fixas + total_cartoes
 despesas_pendentes_geral = total_fixas_pendentes + total_cartoes
-saldo_projetado = total_receitas - total_despesas_geral # Quanto vai sobrar no fim de tudo
+saldo_projetado = total_receitas - total_despesas_geral
 
-# --- Navegação de Meses ---
+# --- Cabeçalho e Navegação ---
+col_head1, col_head2 = st.columns([4, 1])
+with col_head1:
+    st.title("💸 Meu Controle Financeiro")
+with col_head2:
+    st.write("") # Espaçamento
+    if st.button("💾 Salvar Progresso", use_container_width=True, type="primary"):
+        salvar_dados()
+        st.toast('Progresso salvo com sucesso!', icon='✅')
+
 col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
 with col_nav1:
     if st.button("⬅️ Mês Anterior", use_container_width=True):
@@ -97,14 +153,10 @@ with col_nav3:
 st.divider()
 
 # --- Painel de Resumo ---
-st.title("💸 Meu Controle Financeiro")
-
 col_res1, col_res2, col_res3, col_res4 = st.columns(4)
 col_res1.metric("💰 Receitas Totais", f"R$ {total_receitas:.2f}")
-# Exibe despesas pendentes (vai diminuindo ao pagar)
 col_res2.metric("📉 Despesas Pendentes", f"R$ {despesas_pendentes_geral:.2f}", delta=f"- R$ {total_fixas_pagas:.2f} pagas", delta_color="inverse")
 col_res3.metric("✅ Contas Pagas (Mês)", f"R$ {total_fixas_pagas:.2f}")
-# Saldo projetado (Receitas - Todas as despesas)
 col_res4.metric("💲 Saldo Projetado Livre", f"R$ {saldo_projetado:.2f}")
 
 st.write("") 
@@ -113,10 +165,10 @@ st.write("")
 with st.expander("💵 Minhas Rendas (Clique para expandir/ocultar)", expanded=False):
     col_renda1, col_renda2 = st.columns(2)
     with col_renda1:
-        st.subheader("Salário Fixo do Mês")
-        novo_salario = st.number_input("Valor do Salário (R$)", min_value=0.0, value=float(salario_mes), step=100.0)
-        if novo_salario != salario_mes:
-            st.session_state.salarios[mes_view] = novo_salario
+        st.subheader("Salário Fixo (Todos os meses)")
+        novo_salario = st.number_input("Valor do Salário (R$)", min_value=0.0, value=float(st.session_state.salario_fixo), step=100.0)
+        if novo_salario != st.session_state.salario_fixo:
+            st.session_state.salario_fixo = novo_salario
             st.rerun()
 
     with col_renda2:
@@ -134,7 +186,7 @@ with st.expander("💵 Minhas Rendas (Clique para expandir/ocultar)", expanded=F
             c1, c2 = st.columns([4, 1])
             c1.write(f"**{renda['desc']}**: R$ {renda['valor']:.2f}")
             if c2.button("❌", key=f"del_renda_{renda['id']}"):
-                st.session_state.rendas_extras = [r for r in st.session_state.rendas_extras if r['id'] != renda['id']]
+                st.session_state.rendas_extras = [r for r in st.session_state.rendas_extras if r['id'] != renda['id আলোচন']
                 st.rerun()
 
 st.divider()
@@ -169,7 +221,6 @@ with cols_despesas[0]:
         c_chk, c_del = st.columns([4, 1])
         chave_pagamento = f"{mes_view}_{conta['id']}"
         
-        # Checkbox para marcar como pago
         is_pago = st.session_state.pagamentos_fixas.get(chave_pagamento, False)
         novo_status = c_chk.checkbox(f"{conta['desc']} (R$ {conta['valor']:.2f})", value=is_pago, key=f"chk_{chave_pagamento}")
         
@@ -233,24 +284,24 @@ for idx, cartao in enumerate(st.session_state.cartoes):
 
 st.divider()
 
-# --- Seção 3: Exportar para WhatsApp (Baseado na Imagem) ---
-st.header("📱 Exportar Resumo do Mês")
+# --- Seção 3: Exportar para WhatsApp (Somente Cartões) ---
+st.header("📱 Exportar Resumo do Mês (Cartões)")
 st.caption("Clique no ícone de 'Copiar' no canto superior direito da caixa abaixo para enviar no WhatsApp.")
 
-# Montando o texto igual à imagem
-texto_export = "Contas Fixas:\n"
-for c in st.session_state.contas_fixas:
-    texto_export += f"{c['desc']}: R${c['valor']:.2f}\n".replace('.', ',')
-
-texto_export += "\n"
+texto_export = ""
 
 for cartao in st.session_state.cartoes:
     texto_export += f"{cartao['nome']}:\n\n"
     
     despesas_deste = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
-    for d in despesas_deste:
-        texto_export += f"o   {d['desc']}: R${d['valor_parcela']:.2f}\n".replace('.', ',')
-    texto_export += "\n"
+    total_deste = sum(d['valor_parcela'] for d in despesas_deste)
+    
+    if not despesas_deste:
+        texto_export += "Nenhuma despesa neste mês.\n"
+    else:
+        for d in despesas_deste:
+            texto_export += f"o   {d['desc']}: R${d['valor_parcela']:.2f}\n".replace('.', ',')
+            
+    texto_export += f"\nTotal {cartao['nome']}: R${total_deste:.2f}\n\n".replace('.', ',')
 
-# st.code renderiza um bloco de texto com um botão de cópia nativo e muito bonito
 st.code(texto_export.strip(), language="text")
