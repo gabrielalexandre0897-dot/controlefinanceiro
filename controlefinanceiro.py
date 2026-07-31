@@ -10,8 +10,8 @@ st.set_page_config(page_title="Controle Financeiro", layout="wide")
 
 # --- Configurações do Banco de Dados na Nuvem (JSONBin.io) ---
 # Cole aqui as suas chaves do JSONBin:
-JSONBIN_BIN_ID = "SEU_BIN_ID_AQUI"
-JSONBIN_API_KEY = "SUA_MASTER_KEY_AQUI"
+JSONBIN_BIN_ID = 6a6d0293da38895dfeaa20e1
+JSONBIN_API_KEY = $2a$10$4./MIWg993cRRH0a/7mcOut9oKOzNCVWm0qG0ebC8xeX5FnnDA/BG
 
 URL_NUVEM = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
 
