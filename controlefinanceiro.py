@@ -3,29 +3,31 @@ import pandas as pd
 from datetime import datetime
 import uuid
 import json
-import os
+import requests
 
 # Configuração da página
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
 
-# --- Estilização CSS para Alinhamento Perfeito e Espaçamento Justinho ---
+# --- Configurações do Banco de Dados na Nuvem (JSONBin.io) ---
+# Cole aqui as suas chaves do JSONBin:
+JSONBIN_BIN_ID = "SEU_BIN_ID_AQUI"
+JSONBIN_API_KEY = "SUA_MASTER_KEY_AQUI"
+
+URL_NUVEM = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
+
+# Estilização CSS para Alinhamento Perfeito e Espaçamento Justinho
 st.markdown("""
 <style>
-    /* Compacta o contêiner geral da página */
     .block-container {
         padding-top: 1.5rem !important;
         padding-bottom: 1.5rem !important;
     }
-    
-    /* Zera os espaços verticais padrão do Streamlit entre os elementos */
     div[data-testid="stVerticalBlock"] > div {
         gap: 0.15rem !important;
     }
     .element-container {
         margin-bottom: 0px !important;
     }
-
-    /* Ajusta a altura e margens dos Expanders */
     .stExpander {
         margin-bottom: 0px !important;
         border-radius: 4px !important;
@@ -35,23 +37,17 @@ st.markdown("""
         padding-bottom: 0.1rem !important;
         min-height: 2.1rem !important;
     }
-    
-    /* Compacta a altura das caixas de marcação (Contas Fixas) */
     div[data-testid="stCheckbox"] {
         padding-top: 0.1rem !important;
         padding-bottom: 0.1rem !important;
         min-height: 2.1rem !important;
     }
-
-    /* Alinha a altura exata de todos os botões de exclusão ❌ */
     div[data-testid="stButton"] > button {
         padding: 0.1rem 0.4rem !important;
         min-height: 2.1rem !important;
         height: 2.1rem !important;
         margin: 0px !important;
     }
-    
-    /* Regra para ajustar divisores */
     hr {
         margin-top: 0.2rem !important;
         margin-bottom: 0.4rem !important;
@@ -96,19 +92,24 @@ def get_month_name(date_str):
     y, m = map(int, date_str.split('-'))
     return f"{meses[m]} {y}"
 
-# --- 2. Sistema de Salvar/Carregar Dados ---
-DATA_FILE = "meus_dados_financeiros.json"
-
+# --- 2. Sistema de Salvar/Carregar Dados na NUVEM ---
 def carregar_dados():
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return None
+    if JSONBIN_BIN_ID == "SEU_BIN_ID_AQUI":
+        return None
+    headers = {'X-Master-Key': JSONBIN_API_KEY}
+    try:
+        req = requests.get(URL_NUVEM, headers=headers)
+        if req.status_code == 200:
+            return req.json().get('record', {})
+    except Exception as e:
+        st.error(f"Erro ao carregar dados da nuvem: {e}")
     return None
 
 def salvar_dados():
+    if JSONBIN_BIN_ID == "SEU_BIN_ID_AQUI":
+        st.error("Configure o BIN_ID e a API_KEY no código!")
+        return
+        
     dados = {
         "salario_fixo": st.session_state.salario_fixo,
         "rendas_extras": st.session_state.rendas_extras,
@@ -118,8 +119,19 @@ def salvar_dados():
         "compras_cartao": st.session_state.compras_cartao,
         "antecipacoes": st.session_state.get("antecipacoes", {})
     }
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(dados, f, ensure_ascii=False, indent=4)
+    
+    headers = {
+        'Content-Type': 'application/json',
+        'X-Master-Key': JSONBIN_API_KEY
+    }
+    try:
+        req = requests.put(URL_NUVEM, json=dados, headers=headers)
+        if req.status_code == 200:
+            st.toast('Progresso salvo na nuvem com sucesso!', icon='✅')
+        else:
+            st.error("Erro ao salvar dados na nuvem.")
+    except Exception as e:
+        st.error(f"Erro ao salvar na nuvem: {e}")
 
 # --- Inicialização do Session State ---
 if 'dados_iniciados' not in st.session_state:
@@ -154,7 +166,6 @@ mes_view = st.session_state.mes_view
 with st.sidebar:
     st.header("⚙️ Painel de Controle")
     
-    # --- 1. Adicionar Nova Conta / Dívida ---
     with st.expander("➕ Adicionar Nova Conta/Dívida", expanded=True):
         opcoes_destino = ["🏠 Contas Fixas"] + [f"💳 {c['nome']}" for c in st.session_state.cartoes]
         destino_selecionado = st.selectbox("Selecione o Destino", opcoes_destino)
@@ -197,7 +208,6 @@ with st.sidebar:
                         })
                 st.rerun()
 
-    # --- 2. Gerenciador de Rendas ---
     with st.expander("💵 Minhas Rendas", expanded=False):
         st.subheader("Salário Fixo")
         novo_salario = st.number_input("Salário Mensal (R$)", min_value=0.0, value=float(st.session_state.salario_fixo), step=100.0)
@@ -223,7 +233,6 @@ with st.sidebar:
                 st.session_state.rendas_extras = [r for r in st.session_state.rendas_extras if r['id'] != renda['id']]
                 st.rerun()
 
-    # --- 3. Criar Novos Cartões ---
     with st.expander("💳 Configurar Cartões", expanded=False):
         with st.form("form_novo_cartao", clear_on_submit=True):
             novo_nome_cartao = st.text_input("Nome do Cartão (ex: Cartão Dia 10)")
@@ -288,7 +297,6 @@ with col_head2:
     st.write("") 
     if st.button("💾 Salvar Progresso", use_container_width=True, type="primary"):
         salvar_dados()
-        st.toast('Progresso salvo com sucesso!', icon='✅')
 
 col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
 with col_nav1:
@@ -321,7 +329,6 @@ cols_despesas = st.columns(num_cols)
 with cols_despesas[0]:
     st.subheader("🏠 Contas Fixas")
     
-    # Caixa expansível equivalente ao "Opções do Cartão" para igualar perfeitamente a estrutura
     with st.expander("📌 Informações"):
         st.write("Contas fixas se repetem todos os meses.")
 
