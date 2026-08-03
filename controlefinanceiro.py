@@ -9,7 +9,6 @@ import requests
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
 
 # --- Configurações do Banco de Dados Supabase (via API REST) ---
-# Substitua com as suas credenciais do Supabase
 SUPABASE_URL = "https://metlyrhdjzsjmhxazzpm.supabase.co"
 SUPABASE_KEY = "sb_publishable_b1qRwHNc9NOM_OG7TTAitA_IljT8dJ-"
 
@@ -101,8 +100,6 @@ def get_month_name(date_str):
 
 # --- 2. Sistema de Salvar/Carregar Dados no SUPABASE (via REST API) ---
 def carregar_dados():
-    if SUPABASE_URL == "SUA_PROJECT_URL_AQUI":
-        return None
     try:
         url = f"{ENDPOINT}?id=eq.principal&select=conteudo"
         res = requests.get(url, headers=HEADERS)
@@ -115,9 +112,6 @@ def carregar_dados():
     return None
 
 def salvar_dados(silencioso=False):
-    if SUPABASE_URL == "SUA_PROJECT_URL_AQUI":
-        return
-        
     dados = {
         "salario_fixo": st.session_state.salario_fixo,
         "rendas_extras": st.session_state.rendas_extras,
@@ -357,23 +351,24 @@ with cols_despesas[0]:
 
     st.markdown("---")
 
-    for conta in st.session_state.contas_fixas:
-        c_chk, c_del = st.columns([5, 1])
-        chave_pagamento = f"{mes_view}_{conta['id']}"
-        
-        is_pago = st.session_state.pagamentos_fixas.get(chave_pagamento, False)
-        novo_status = c_chk.checkbox(f"{conta['desc']} (R$ {conta['valor']:.2f})", value=is_pago, key=f"chk_{chave_pagamento}")
-        
-        if novo_status != is_pago:
-            st.session_state.pagamentos_fixas[chave_pagamento] = novo_status
-            salvar_dados(silencioso=True)
-            st.rerun()
+    with st.expander("📋 Ver Gastos Fixos", expanded=True):
+        for conta in st.session_state.contas_fixas:
+            c_chk, c_del = st.columns([5, 1])
+            chave_pagamento = f"{mes_view}_{conta['id']}"
             
-        if c_del.button("❌", key=f"del_fixa_{conta['id']}", help="Excluir conta de todos os meses"):
-            st.session_state.contas_fixas = [c for c in st.session_state.contas_fixas if c['id'] != conta['id']]
-            salvar_dados(silencioso=True)
-            st.rerun()
+            is_pago = st.session_state.pagamentos_fixas.get(chave_pagamento, False)
+            novo_status = c_chk.checkbox(f"{conta['desc']} (R$ {conta['valor']:.2f})", value=is_pago, key=f"chk_{chave_pagamento}")
             
+            if novo_status != is_pago:
+                st.session_state.pagamentos_fixas[chave_pagamento] = novo_status
+                salvar_dados(silencioso=True)
+                st.rerun()
+                
+            if c_del.button("❌", key=f"del_fixa_{conta['id']}", help="Excluir conta de todos os meses"):
+                st.session_state.contas_fixas = [c for c in st.session_state.contas_fixas if c['id'] != conta['id']]
+                salvar_dados(silencioso=True)
+                st.rerun()
+                
     st.markdown(f"**Total Fixas: R$ {total_fixas:.2f}**")
 
 # ---> Colunas 2+: Cartões <---
@@ -405,54 +400,55 @@ for idx, cartao in enumerate(st.session_state.cartoes):
 
         despesas_deste_cartao_neste_mes = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
         
-        for desp in despesas_deste_cartao_neste_mes:
-            if desp['recorrente']:
-                texto_parcela = " (Fixo)"
-            elif desp['total_parcelas'] > 1:
-                texto_parcela = f" ({desp['parcela_atual']}/{desp['total_parcelas']})"
-            else:
-                texto_parcela = ""
+        with st.expander(f"📋 Ver Gastos ({cartao['nome']})", expanded=True):
+            for desp in despesas_deste_cartao_neste_mes:
+                if desp['recorrente']:
+                    texto_parcela = " (Fixo)"
+                elif desp['total_parcelas'] > 1:
+                    texto_parcela = f" ({desp['parcela_atual']}/{desp['total_parcelas']})"
+                else:
+                    texto_parcela = ""
 
-            c_edit, c_del = st.columns([5, 1])
-            
-            with c_edit:
-                with st.expander(f"✏️ {desp['desc']}{texto_parcela} - R$ {desp['valor_parcela']:.2f}"):
-                    compra_original = next((c for c in st.session_state.compras_cartao if c['id'] == desp['id']), None)
-                    
-                    if compra_original and not desp['recorrente'] and desp['total_parcelas'] > 1:
-                        st.caption("⚡ Opção de Antecipação:")
-                        if st.button(f"🚀 Antecipar +1 Parcela no Mês Atual", key=f"antecipa_{desp['id']}"):
-                            st.session_state.antecipacoes[desp['id']] = st.session_state.antecipacoes.get(desp['id'], 0) + 1
-                            salvar_dados(silencioso=True)
-                            st.toast("1 Parcela antecipada e quitada do futuro!", icon="🚀")
-                            st.rerun()
-                        st.divider()
+                c_edit, c_del = st.columns([5, 1])
+                
+                with c_edit:
+                    with st.expander(f"✏️ {desp['desc']}{texto_parcela} - R$ {desp['valor_parcela']:.2f}"):
+                        compra_original = next((c for c in st.session_state.compras_cartao if c['id'] == desp['id']), None)
+                        
+                        if compra_original and not desp['recorrente'] and desp['total_parcelas'] > 1:
+                            st.caption("⚡ Opção de Antecipação:")
+                            if st.button(f"🚀 Antecipar +1 Parcela no Mês Atual", key=f"antecipa_{desp['id']}"):
+                                st.session_state.antecipacoes[desp['id']] = st.session_state.antecipacoes.get(desp['id'], 0) + 1
+                                salvar_dados(silencioso=True)
+                                st.toast("1 Parcela antecipada e quitada do futuro!", icon="🚀")
+                                st.rerun()
+                            st.divider()
 
-                    with st.form(f"form_edit_compra_{desp['id']}"):
-                        novo_desc = st.text_input("Editar Descrição", value=desp['desc'])
-                        
-                        val_atual_total = compra_original['valor_total'] if compra_original else desp['valor_total']
-                        parc_atual_total = compra_original['parcelas'] if compra_original else desp['total_parcelas']
-                        rec_atual = compra_original.get('recorrente', False) if compra_original else desp['recorrente']
-                        
-                        novo_valor_total = st.number_input("Editar Valor Total (R$)", min_value=0.0, value=float(val_atual_total), step=10.0)
-                        novo_rec = st.checkbox("Recorrente (Fixo todo mês)", value=rec_atual, key=f"rec_{desp['id']}")
-                        nova_qtd_parc = st.number_input("Editar Qtd Parcelas", min_value=1, step=1, value=int(parc_atual_total), disabled=novo_rec, key=f"parc_{desp['id']}")
-                        
-                        btn_salvar_edicao = st.form_submit_button("Salvar Alterações")
-                        if btn_salvar_edicao and compra_original:
-                            compra_original['desc'] = novo_desc
-                            compra_original['valor_total'] = novo_valor_total
-                            compra_original['recorrente'] = novo_rec
-                            compra_original['parcelas'] = 1 if novo_rec else nova_qtd_parc
-                            salvar_dados(silencioso=True)
-                            st.rerun()
+                        with st.form(f"form_edit_compra_{desp['id']}"):
+                            novo_desc = st.text_input("Editar Descrição", value=desp['desc'])
+                            
+                            val_atual_total = compra_original['valor_total'] if compra_original else desp['valor_total']
+                            parc_atual_total = compra_original['parcelas'] if compra_original else desp['total_parcelas']
+                            rec_atual = compra_original.get('recorrente', False) if compra_original else desp['recorrente']
+                            
+                            novo_valor_total = st.number_input("Editar Valor Total (R$)", min_value=0.0, value=float(val_atual_total), step=10.0)
+                            novo_rec = st.checkbox("Recorrente (Fixo todo mês)", value=rec_atual, key=f"rec_{desp['id']}")
+                            nova_qtd_parc = st.number_input("Editar Qtd Parcelas", min_value=1, step=1, value=int(parc_atual_total), disabled=novo_rec, key=f"parc_{desp['id']}")
+                            
+                            btn_salvar_edicao = st.form_submit_button("Salvar Alterações")
+                            if btn_salvar_edicao and compra_original:
+                                compra_original['desc'] = novo_desc
+                                compra_original['valor_total'] = novo_valor_total
+                                compra_original['recorrente'] = novo_rec
+                                compra_original['parcelas'] = 1 if novo_rec else nova_qtd_parc
+                                salvar_dados(silencioso=True)
+                                st.rerun()
 
-            with c_del:
-                if st.button("❌", key=f"del_desp_{desp['id']}"):
-                    st.session_state.compras_cartao = [c for c in st.session_state.compras_cartao if c['id'] != desp['id']]
-                    salvar_dados(silencioso=True)
-                    st.rerun()
+                with c_del:
+                    if st.button("❌", key=f"del_desp_{desp['id']}"):
+                        st.session_state.compras_cartao = [c for c in st.session_state.compras_cartao if c['id'] != desp['id']]
+                        salvar_dados(silencioso=True)
+                        st.rerun()
 
         total_cartao = sum(d['valor_parcela'] for d in despesas_deste_cartao_neste_mes)
         st.markdown(f"**Total Mês: R$ {total_cartao:.2f}**")
