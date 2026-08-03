@@ -9,8 +9,8 @@ from supabase import create_client, Client
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
 
 # --- Configurações do Banco de Dados Supabase ---
-SUPABASE_URL = "SUA_PROJECT_URL_AQUI"
-SUPABASE_KEY = "SUA_API_KEY_AQUI"
+SUPABASE_URL = "metlyrhdjzsjmhxazzpm"
+SUPABASE_KEY = "sb_publishable_b1qRwHNc9NOM_OG7TTAitA_IljT8dJ-"
 
 @st.cache_resource
 def init_supabase() -> Client:
