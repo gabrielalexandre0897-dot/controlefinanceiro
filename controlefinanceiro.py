@@ -452,8 +452,7 @@ for idx, cartao in enumerate(st.session_state.cartoes):
 st.divider()
 
 # --- Seção 3: Exportar para WhatsApp ---
-st.header("📱 Exportar Resumo do Mês (Cartões)")
-st.caption("Clique no ícone de 'Copiar' no canto superior direito da caixa abaixo para enviar no WhatsApp.")
+st.header("📱 Resumo do Mês (Cartões)")
 
 texto_export = ""
 
