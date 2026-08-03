@@ -242,8 +242,25 @@ with st.sidebar:
                 st.rerun()
 
     with st.expander("💳 Configurar Cartões", expanded=False):
+        st.caption("Opções e criação de cartões:")
+        
+        # Gerenciamento dos cartões existentes (Editar / Excluir)
+        for idx, cartao in enumerate(st.session_state.cartoes):
+            novo_nome = st.text_input(f"Nome do Cartão", value=cartao["nome"], key=f"edit_nome_side_{cartao['id']}")
+            if novo_nome != cartao["nome"]:
+                st.session_state.cartoes[idx]["nome"] = novo_nome
+                salvar_dados(silencioso=True)
+
+            tem_dividas = any(c['cartao_id'] == cartao['id'] for c in st.session_state.compras_cartao)
+            if not tem_dividas:
+                if st.button(f"🗑️ Excluir {cartao['nome']}", key=f"del_cartao_side_{cartao['id']}"):
+                    st.session_state.cartoes.pop(idx)
+                    salvar_dados(silencioso=True)
+                    st.rerun()
+            st.divider()
+
         with st.form("form_novo_cartao", clear_on_submit=True):
-            novo_nome_cartao = st.text_input("Nome do Cartão (ex: Cartão Dia 10)")
+            novo_nome_cartao = st.text_input("Criar Novo Cartão")
             btn_add_cartao = st.form_submit_button("Criar Cartão")
             if btn_add_cartao and novo_nome_cartao:
                 st.session_state.cartoes.append({"id": str(uuid.uuid4()), "nome": novo_nome_cartao})
@@ -344,11 +361,6 @@ cols_despesas = st.columns(num_cols)
 
 # ---> Coluna 1: Contas Fixas <---
 with cols_despesas[0]:
-    with st.expander("📌 Informações"):
-        st.write("Contas fixas se repetem todos os meses.")
-
-    st.markdown("---")
-
     with st.expander("🏠 Ver Contas Fixas", expanded=True):
         for conta in st.session_state.contas_fixas:
             c_chk, c_del = st.columns([5, 1])
@@ -374,26 +386,9 @@ for idx, cartao in enumerate(st.session_state.cartoes):
     with cols_despesas[idx + 1]:
         chave_pago_cartao = f"{mes_view}_{cartao['id']}"
         is_cartao_pago = st.session_state.pagamentos_cartoes.get(chave_pago_cartao, False)
-        
-        with st.expander(f"⚙️ Opções ({cartao['nome']})"):
-            novo_nome = st.text_input("Editar Nome:", value=cartao["nome"], key=f"edit_nome_{cartao['id']}")
-            if novo_nome != cartao["nome"]:
-                st.session_state.cartoes[idx]["nome"] = novo_nome
-                salvar_dados(silencioso=True)
-
-            tem_dividas = any(c['cartao_id'] == cartao['id'] for c in st.session_state.compras_cartao)
-            if not tem_dividas:
-                if st.button("🗑️ Excluir Cartão", key=f"del_cartao_{cartao['id']}"):
-                    st.session_state.cartoes.pop(idx)
-                    salvar_dados(silencioso=True)
-                    st.rerun()
-
-        st.markdown("---")
-
         despesas_deste_cartao_neste_mes = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
         
         with st.expander(f"💳 Ver Gastos ({cartao['nome']})", expanded=True):
-            # Checkbox de pagamento inserida dentro do expander dos gastos do cartão
             novo_status_cartao = st.checkbox(f"✅ **Fatura Paga ({cartao['nome']})**", value=is_cartao_pago, key=f"chk_cartao_{chave_pago_cartao}")
             if novo_status_cartao != is_cartao_pago:
                 st.session_state.pagamentos_cartoes[chave_pago_cartao] = novo_status_cartao
