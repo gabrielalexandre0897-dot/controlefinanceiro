@@ -3,23 +3,24 @@ import pandas as pd
 from datetime import datetime
 import uuid
 import json
-from supabase import create_client, Client
+import requests
 
 # Configuração da página
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
 
-# --- Configurações do Banco de Dados Supabase ---
-SUPABASE_URL = "metlyrhdjzsjmhxazzpm"
-SUPABASE_KEY = "sb_publishable_b1qRwHNc9NOM_OG7TTAitA_IljT8dJ-"
+# --- Configurações do Banco de Dados Supabase (via API REST) ---
+# Substitua com as suas credenciais do Supabase
+SUPABASE_URL = "SUA_PROJECT_URL_AQUI"
+SUPABASE_KEY = "SUA_API_KEY_AQUI"
 
-@st.cache_resource
-def init_supabase() -> Client:
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "resolution=merge-duplicates"
+}
 
-try:
-    supabase = init_supabase()
-except Exception as e:
-    st.error("Configure as chaves do Supabase no topo do código!")
+ENDPOINT = f"{SUPABASE_URL}/rest/v1/dados_financeiros"
 
 # Estilização CSS para Alinhamento Perfeito e Espaçamento Justinho
 st.markdown("""
@@ -98,17 +99,25 @@ def get_month_name(date_str):
     y, m = map(int, date_str.split('-'))
     return f"{meses[m]} {y}"
 
-# --- 2. Sistema de Salvar/Carregar Dados no SUPABASE ---
+# --- 2. Sistema de Salvar/Carregar Dados no SUPABASE (via REST API) ---
 def carregar_dados():
+    if SUPABASE_URL == "SUA_PROJECT_URL_AQUI":
+        return None
     try:
-        response = supabase.table("dados_financeiros").select("conteudo").eq("id", "principal").execute()
-        if response.data and len(response.data) > 0:
-            return response.data[0].get("conteudo", {})
+        url = f"{ENDPOINT}?id=eq.principal&select=conteudo"
+        res = requests.get(url, headers=HEADERS)
+        if res.status_code == 200:
+            dados = res.json()
+            if dados and len(dados) > 0:
+                return dados[0].get("conteudo", {})
     except Exception as e:
         st.error(f"Erro ao carregar dados do Supabase: {e}")
     return None
 
 def salvar_dados(silencioso=False):
+    if SUPABASE_URL == "SUA_PROJECT_URL_AQUI":
+        return
+        
     dados = {
         "salario_fixo": st.session_state.salario_fixo,
         "rendas_extras": st.session_state.rendas_extras,
@@ -120,9 +129,14 @@ def salvar_dados(silencioso=False):
         "antecipacoes": st.session_state.get("antecipacoes", {})
     }
     
+    payload = [{
+        "id": "principal",
+        "conteudo": dados
+    }]
+    
     try:
-        supabase.table("dados_financeiros").upsert({"id": "principal", "conteudo": dados}).execute()
-        if not silencioso:
+        res = requests.post(ENDPOINT, json=payload, headers=HEADERS)
+        if res.status_code in [200, 201] and not silencioso:
             st.toast('Progresso salvo no Supabase com sucesso!', icon='✅')
     except Exception as e:
         st.error(f"Erro ao salvar no Supabase: {e}")
