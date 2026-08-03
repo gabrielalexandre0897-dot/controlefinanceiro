@@ -10,8 +10,8 @@ st.set_page_config(page_title="Controle Financeiro", layout="wide")
 
 # --- Configurações do Banco de Dados Supabase (via API REST) ---
 # Substitua com as suas credenciais do Supabase
-SUPABASE_URL = "SUA_PROJECT_URL_AQUI"
-SUPABASE_KEY = "SUA_API_KEY_AQUI"
+SUPABASE_URL = "metlyrhdjzsjmhxazzpm"
+SUPABASE_KEY = "sb_publishable_gAIQP7GY098r3dzaFS77-g_IEAje5s5"
 
 HEADERS = {
     "apikey": SUPABASE_KEY,
