@@ -98,7 +98,7 @@ def get_month_name(date_str):
     y, m = map(int, date_str.split('-'))
     return f"{meses[m]} {y}"
 
-# --- 2. Sistema de Salvar/Carregar Dados no SUPABASE (via REST API) ---
+# --- 2. Sistema de Salvar/Carregar Dados no SUPABASE ---
 def carregar_dados():
     try:
         url = f"{ENDPOINT}?id=eq.principal&select=conteudo"
@@ -107,8 +107,10 @@ def carregar_dados():
             dados = res.json()
             if dados and len(dados) > 0:
                 return dados[0].get("conteudo", {})
+        else:
+            st.error(f"Erro ao ler do Supabase ({res.status_code}): {res.text}")
     except Exception as e:
-        st.error(f"Erro ao carregar dados do Supabase: {e}")
+        st.error(f"Erro de conexão ao carregar do Supabase: {e}")
     return None
 
 def salvar_dados(silencioso=False):
@@ -131,12 +133,14 @@ def salvar_dados(silencioso=False):
     try:
         url_upsert = f"{ENDPOINT}?on_conflict=id"
         res = requests.post(url_upsert, json=payload, headers=HEADERS)
-        if res.status_code in [200, 201, 204] and not silencioso:
-            st.toast('Progresso salvo no Supabase com sucesso!', icon='✅')
-        elif res.status_code not in [200, 201, 204]:
-            st.error(f"Erro ao salvar no Supabase (Código {res.status_code}): {res.text}")
+        
+        if res.status_code in [200, 201, 204]:
+            if not silencioso:
+                st.toast('Progresso salvo no Supabase com sucesso!', icon='✅')
+        else:
+            st.error(f"Falha ao gravar no Supabase ({res.status_code}): {res.text}")
     except Exception as e:
-        st.error(f"Erro ao salvar no Supabase: {e}")
+        st.error(f"Erro de conexão ao salvar no Supabase: {e}")
 
 # --- Inicialização do Session State ---
 if 'dados_iniciados' not in st.session_state:
@@ -247,7 +251,6 @@ with st.sidebar:
     with st.expander("💳 Configurar Cartões", expanded=False):
         st.caption("Opções e criação de cartões:")
         
-        # Gerenciamento dos cartões existentes (Editar / Excluir)
         for idx, cartao in enumerate(st.session_state.cartoes):
             novo_nome = st.text_input(f"Nome do Cartão", value=cartao["nome"], key=f"edit_nome_side_{cartao['id']}")
             if novo_nome != cartao["nome"]:
@@ -311,7 +314,6 @@ for compra in st.session_state.compras_cartao:
                 'recorrente': False
             })
 
-# Cálculo de faturas pagas
 total_cartoes = sum(d['valor_parcela'] for d in despesas_cartao_mes)
 total_cartoes_pagos = 0.0
 
@@ -364,7 +366,7 @@ cols_despesas = st.columns(num_cols)
 
 # ---> Coluna 1: Contas Fixas <---
 with cols_despesas[0]:
-    with st.expander("🏠 Ver Contas Fixas", expanded=True):
+    with st.expander("🏠 Contas Fixas", expanded=True):
         for conta in st.session_state.contas_fixas:
             c_chk, c_del = st.columns([5, 1])
             chave_pagamento = f"{mes_view}_{conta['id']}"
@@ -391,7 +393,7 @@ for idx, cartao in enumerate(st.session_state.cartoes):
         is_cartao_pago = st.session_state.pagamentos_cartoes.get(chave_pago_cartao, False)
         despesas_deste_cartao_neste_mes = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
         
-        with st.expander(f"💳 Ver Gastos ({cartao['nome']})", expanded=True):
+        with st.expander(f"💳 {cartao['nome']}", expanded=True):
             novo_status_cartao = st.checkbox(f"✅ **Fatura Paga ({cartao['nome']})**", value=is_cartao_pago, key=f"chk_cartao_{chave_pago_cartao}")
             if novo_status_cartao != is_cartao_pago:
                 st.session_state.pagamentos_cartoes[chave_pago_cartao] = novo_status_cartao
