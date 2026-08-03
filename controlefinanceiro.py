@@ -366,7 +366,8 @@ cols_despesas = st.columns(num_cols)
 
 # ---> Coluna 1: Contas Fixas <---
 with cols_despesas[0]:
-    with st.expander("🏠 Contas Fixas", expanded=True):
+    # Alterado para expanded=False para iniciar oculto
+    with st.expander("🏠 Contas Fixas", expanded=False):
         for conta in st.session_state.contas_fixas:
             c_chk, c_del = st.columns([5, 1])
             chave_pagamento = f"{mes_view}_{conta['id']}"
@@ -393,7 +394,8 @@ for idx, cartao in enumerate(st.session_state.cartoes):
         is_cartao_pago = st.session_state.pagamentos_cartoes.get(chave_pago_cartao, False)
         despesas_deste_cartao_neste_mes = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
         
-        with st.expander(f"💳 {cartao['nome']}", expanded=True):
+        # Alterado para expanded=False para iniciar oculto
+        with st.expander(f"💳 {cartao['nome']}", expanded=False):
             novo_status_cartao = st.checkbox(f"✅ **Fatura Paga ({cartao['nome']})**", value=is_cartao_pago, key=f"chk_cartao_{chave_pago_cartao}")
             if novo_status_cartao != is_cartao_pago:
                 st.session_state.pagamentos_cartoes[chave_pago_cartao] = novo_status_cartao
