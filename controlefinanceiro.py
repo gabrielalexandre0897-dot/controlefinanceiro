@@ -344,14 +344,12 @@ cols_despesas = st.columns(num_cols)
 
 # ---> Coluna 1: Contas Fixas <---
 with cols_despesas[0]:
-    st.subheader("🏠 Contas Fixas")
-    
     with st.expander("📌 Informações"):
         st.write("Contas fixas se repetem todos os meses.")
 
     st.markdown("---")
 
-    with st.expander("📋 Ver Gastos Fixos", expanded=True):
+    with st.expander("🏠 Ver Contas Fixas", expanded=True):
         for conta in st.session_state.contas_fixas:
             c_chk, c_del = st.columns([5, 1])
             chave_pagamento = f"{mes_view}_{conta['id']}"
@@ -377,13 +375,7 @@ for idx, cartao in enumerate(st.session_state.cartoes):
         chave_pago_cartao = f"{mes_view}_{cartao['id']}"
         is_cartao_pago = st.session_state.pagamentos_cartoes.get(chave_pago_cartao, False)
         
-        novo_status_cartao = st.checkbox(f"💳 **{cartao['nome']}**", value=is_cartao_pago, key=f"chk_cartao_{chave_pago_cartao}")
-        if novo_status_cartao != is_cartao_pago:
-            st.session_state.pagamentos_cartoes[chave_pago_cartao] = novo_status_cartao
-            salvar_dados(silencioso=True)
-            st.rerun()
-        
-        with st.expander("⚙️ Opções do Cartão"):
+        with st.expander(f"⚙️ Opções ({cartao['nome']})"):
             novo_nome = st.text_input("Editar Nome:", value=cartao["nome"], key=f"edit_nome_{cartao['id']}")
             if novo_nome != cartao["nome"]:
                 st.session_state.cartoes[idx]["nome"] = novo_nome
@@ -400,7 +392,16 @@ for idx, cartao in enumerate(st.session_state.cartoes):
 
         despesas_deste_cartao_neste_mes = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
         
-        with st.expander(f"📋 Ver Gastos ({cartao['nome']})", expanded=True):
+        with st.expander(f"💳 Ver Gastos ({cartao['nome']})", expanded=True):
+            # Checkbox de pagamento inserida dentro do expander dos gastos do cartão
+            novo_status_cartao = st.checkbox(f"✅ **Fatura Paga ({cartao['nome']})**", value=is_cartao_pago, key=f"chk_cartao_{chave_pago_cartao}")
+            if novo_status_cartao != is_cartao_pago:
+                st.session_state.pagamentos_cartoes[chave_pago_cartao] = novo_status_cartao
+                salvar_dados(silencioso=True)
+                st.rerun()
+            
+            st.divider()
+
             for desp in despesas_deste_cartao_neste_mes:
                 if desp['recorrente']:
                     texto_parcela = " (Fixo)"
