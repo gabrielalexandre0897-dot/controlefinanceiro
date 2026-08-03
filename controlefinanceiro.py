@@ -129,9 +129,12 @@ def salvar_dados(silencioso=False):
     }]
     
     try:
-        res = requests.post(ENDPOINT, json=payload, headers=HEADERS)
-        if res.status_code in [200, 201] and not silencioso:
+        url_upsert = f"{ENDPOINT}?on_conflict=id"
+        res = requests.post(url_upsert, json=payload, headers=HEADERS)
+        if res.status_code in [200, 201, 204] and not silencioso:
             st.toast('Progresso salvo no Supabase com sucesso!', icon='✅')
+        elif res.status_code not in [200, 201, 204]:
+            st.error(f"Erro ao salvar no Supabase (Código {res.status_code}): {res.text}")
     except Exception as e:
         st.error(f"Erro ao salvar no Supabase: {e}")
 
@@ -361,7 +364,7 @@ cols_despesas = st.columns(num_cols)
 
 # ---> Coluna 1: Contas Fixas <---
 with cols_despesas[0]:
-    with st.expander("🏠 Contas Fixas", expanded=True):
+    with st.expander("🏠 Ver Contas Fixas", expanded=True):
         for conta in st.session_state.contas_fixas:
             c_chk, c_del = st.columns([5, 1])
             chave_pagamento = f"{mes_view}_{conta['id']}"
@@ -388,7 +391,7 @@ for idx, cartao in enumerate(st.session_state.cartoes):
         is_cartao_pago = st.session_state.pagamentos_cartoes.get(chave_pago_cartao, False)
         despesas_deste_cartao_neste_mes = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
         
-        with st.expander(f"💳 {cartao['nome']}", expanded=True):
+        with st.expander(f"💳 Ver Gastos ({cartao['nome']})", expanded=True):
             novo_status_cartao = st.checkbox(f"✅ **Fatura Paga ({cartao['nome']})**", value=is_cartao_pago, key=f"chk_cartao_{chave_pago_cartao}")
             if novo_status_cartao != is_cartao_pago:
                 st.session_state.pagamentos_cartoes[chave_pago_cartao] = novo_status_cartao
