@@ -9,7 +9,7 @@ import requests
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
 
 # --- Configurações do Banco de Dados na Nuvem (JSONBin.io) ---
-# Cole aqui as suas chaves do JSONBin:
+# Mantenha seu BIN_ID e API_KEY entre aspas:
 JSONBIN_BIN_ID = "6a6d0293da38895dfeaa20e1"
 JSONBIN_API_KEY = "$2a$10$4./MIWg993cRRH0a/7mcOut9oKOzNCVWm0qG0ebC8xeX5FnnDA/BG"
 
@@ -105,9 +105,8 @@ def carregar_dados():
         st.error(f"Erro ao carregar dados da nuvem: {e}")
     return None
 
-def salvar_dados():
+def salvar_dados(silencioso=False):
     if JSONBIN_BIN_ID == "SEU_BIN_ID_AQUI":
-        st.error("Configure o BIN_ID e a API_KEY no código!")
         return
         
     dados = {
@@ -115,6 +114,7 @@ def salvar_dados():
         "rendas_extras": st.session_state.rendas_extras,
         "contas_fixas": st.session_state.contas_fixas,
         "pagamentos_fixas": st.session_state.pagamentos_fixas,
+        "pagamentos_cartoes": st.session_state.get("pagamentos_cartoes", {}),
         "cartoes": st.session_state.cartoes,
         "compras_cartao": st.session_state.compras_cartao,
         "antecipacoes": st.session_state.get("antecipacoes", {})
@@ -126,10 +126,8 @@ def salvar_dados():
     }
     try:
         req = requests.put(URL_NUVEM, json=dados, headers=headers)
-        if req.status_code == 200:
+        if req.status_code == 200 and not silencioso:
             st.toast('Progresso salvo na nuvem com sucesso!', icon='✅')
-        else:
-            st.error("Erro ao salvar dados na nuvem.")
     except Exception as e:
         st.error(f"Erro ao salvar na nuvem: {e}")
 
@@ -141,6 +139,7 @@ if 'dados_iniciados' not in st.session_state:
         st.session_state.rendas_extras = dados_salvos.get("rendas_extras", [])
         st.session_state.contas_fixas = dados_salvos.get("contas_fixas", [])
         st.session_state.pagamentos_fixas = dados_salvos.get("pagamentos_fixas", {})
+        st.session_state.pagamentos_cartoes = dados_salvos.get("pagamentos_cartoes", {})
         st.session_state.cartoes = dados_salvos.get("cartoes", [{"id": "c1", "nome": "Cartão Dia 5"}, {"id": "c2", "nome": "Cartão Dia 20"}])
         st.session_state.compras_cartao = dados_salvos.get("compras_cartao", [])
         st.session_state.antecipacoes = dados_salvos.get("antecipacoes", {})
@@ -149,6 +148,7 @@ if 'dados_iniciados' not in st.session_state:
         st.session_state.rendas_extras = []
         st.session_state.contas_fixas = []
         st.session_state.pagamentos_fixas = {}
+        st.session_state.pagamentos_cartoes = {}
         st.session_state.cartoes = [
             {"id": "c1", "nome": "Cartão Dia 5"},
             {"id": "c2", "nome": "Cartão Dia 20"}
@@ -206,6 +206,7 @@ with st.sidebar:
                             "recorrente": is_recorrente,
                             "mes_inicio": mes_view
                         })
+                salvar_dados(silencioso=True)
                 st.rerun()
 
     with st.expander("💵 Minhas Rendas", expanded=False):
@@ -213,6 +214,7 @@ with st.sidebar:
         novo_salario = st.number_input("Salário Mensal (R$)", min_value=0.0, value=float(st.session_state.salario_fixo), step=100.0)
         if novo_salario != st.session_state.salario_fixo:
             st.session_state.salario_fixo = novo_salario
+            salvar_dados(silencioso=True)
             st.rerun()
 
         st.divider()
@@ -223,6 +225,7 @@ with st.sidebar:
             btn_add_renda = st.form_submit_button("Adicionar Renda")
             if btn_add_renda and desc_renda and val_renda > 0:
                 st.session_state.rendas_extras.append({"id": str(uuid.uuid4()), "mes": mes_view, "desc": desc_renda, "valor": val_renda})
+                salvar_dados(silencioso=True)
                 st.rerun()
 
         rendas_mes = [r for r in st.session_state.rendas_extras if r['mes'] == mes_view]
@@ -231,6 +234,7 @@ with st.sidebar:
             c1.write(f"**{renda['desc']}**: R$ {renda['valor']:.2f}")
             if c2.button("❌", key=f"del_renda_{renda['id']}"):
                 st.session_state.rendas_extras = [r for r in st.session_state.rendas_extras if r['id'] != renda['id']]
+                salvar_dados(silencioso=True)
                 st.rerun()
 
     with st.expander("💳 Configurar Cartões", expanded=False):
@@ -239,6 +243,7 @@ with st.sidebar:
             btn_add_cartao = st.form_submit_button("Criar Cartão")
             if btn_add_cartao and novo_nome_cartao:
                 st.session_state.cartoes.append({"id": str(uuid.uuid4()), "nome": novo_nome_cartao})
+                salvar_dados(silencioso=True)
                 st.rerun()
 
 # --- Lógica de Filtro e Cálculos ---
@@ -283,9 +288,18 @@ for compra in st.session_state.compras_cartao:
                 'recorrente': False
             })
 
+# Cálculo de faturas pagas
 total_cartoes = sum(d['valor_parcela'] for d in despesas_cartao_mes)
+total_cartoes_pagos = 0.0
+
+for c in st.session_state.cartoes:
+    if st.session_state.pagamentos_cartoes.get(f"{mes_view}_{c['id']}", False):
+        desps_c = [d['valor_parcela'] for d in despesas_cartao_mes if d['cartao_id'] == c['id']]
+        total_cartoes_pagos += sum(desps_c)
+
 total_despesas_geral = total_fixas + total_cartoes
-despesas_pendentes_geral = total_fixas_pendentes + total_cartoes
+total_pagos_geral = total_fixas_pagas + total_cartoes_pagos
+despesas_pendentes_geral = total_despesas_geral - total_pagos_geral
 saldo_projetado = total_receitas - total_despesas_geral
 
 # --- TELA PRINCIPAL ---
@@ -314,8 +328,8 @@ st.divider()
 
 col_res1, col_res2, col_res3, col_res4 = st.columns(4)
 col_res1.metric("💰 Receitas Totais", f"R$ {total_receitas:.2f}")
-col_res2.metric("📉 Despesas Pendentes", f"R$ {despesas_pendentes_geral:.2f}", delta=f"- R$ {total_fixas_pagas:.2f} pagas", delta_color="inverse")
-col_res3.metric("✅ Contas Pagas (Mês)", f"R$ {total_fixas_pagas:.2f}")
+col_res2.metric("📉 Despesas Pendentes", f"R$ {despesas_pendentes_geral:.2f}", delta=f"- R$ {total_pagos_geral:.2f} pagas", delta_color="inverse")
+col_res3.metric("✅ Contas Pagas (Mês)", f"R$ {total_pagos_geral:.2f}")
 col_res4.metric("💲 Saldo Projetado Livre", f"R$ {saldo_projetado:.2f}")
 
 st.divider()
@@ -343,10 +357,12 @@ with cols_despesas[0]:
         
         if novo_status != is_pago:
             st.session_state.pagamentos_fixas[chave_pagamento] = novo_status
+            salvar_dados(silencioso=True)
             st.rerun()
             
         if c_del.button("❌", key=f"del_fixa_{conta['id']}", help="Excluir conta de todos os meses"):
             st.session_state.contas_fixas = [c for c in st.session_state.contas_fixas if c['id'] != conta['id']]
+            salvar_dados(silencioso=True)
             st.rerun()
             
     st.markdown(f"**Total Fixas: R$ {total_fixas:.2f}**")
@@ -354,17 +370,27 @@ with cols_despesas[0]:
 # ---> Colunas 2+: Cartões <---
 for idx, cartao in enumerate(st.session_state.cartoes):
     with cols_despesas[idx + 1]:
-        st.subheader(f"💳 {cartao['nome']}")
+        chave_pago_cartao = f"{mes_view}_{cartao['id']}"
+        is_cartao_pago = st.session_state.pagamentos_cartoes.get(chave_pago_cartao, False)
+        
+        # Checkbox de pagamento da fatura do cartão
+        novo_status_cartao = st.checkbox(f"💳 **{cartao['nome']}**", value=is_cartao_pago, key=f"chk_cartao_{chave_pago_cartao}")
+        if novo_status_cartao != is_cartao_pago:
+            st.session_state.pagamentos_cartoes[chave_pago_cartao] = novo_status_cartao
+            salvar_dados(silencioso=True)
+            st.rerun()
         
         with st.expander("⚙️ Opções do Cartão"):
             novo_nome = st.text_input("Editar Nome:", value=cartao["nome"], key=f"edit_nome_{cartao['id']}")
             if novo_nome != cartao["nome"]:
                 st.session_state.cartoes[idx]["nome"] = novo_nome
+                salvar_dados(silencioso=True)
 
             tem_dividas = any(c['cartao_id'] == cartao['id'] for c in st.session_state.compras_cartao)
             if not tem_dividas:
                 if st.button("🗑️ Excluir Cartão", key=f"del_cartao_{cartao['id']}"):
                     st.session_state.cartoes.pop(idx)
+                    salvar_dados(silencioso=True)
                     st.rerun()
 
         st.markdown("---")
@@ -389,6 +415,7 @@ for idx, cartao in enumerate(st.session_state.cartoes):
                         st.caption("⚡ Opção de Antecipação:")
                         if st.button(f"🚀 Antecipar +1 Parcela no Mês Atual", key=f"antecipa_{desp['id']}"):
                             st.session_state.antecipacoes[desp['id']] = st.session_state.antecipacoes.get(desp['id'], 0) + 1
+                            salvar_dados(silencioso=True)
                             st.toast("1 Parcela antecipada e quitada do futuro!", icon="🚀")
                             st.rerun()
                         st.divider()
@@ -410,11 +437,13 @@ for idx, cartao in enumerate(st.session_state.cartoes):
                             compra_original['valor_total'] = novo_valor_total
                             compra_original['recorrente'] = novo_rec
                             compra_original['parcelas'] = 1 if novo_rec else nova_qtd_parc
+                            salvar_dados(silencioso=True)
                             st.rerun()
 
             with c_del:
                 if st.button("❌", key=f"del_desp_{desp['id']}"):
                     st.session_state.compras_cartao = [c for c in st.session_state.compras_cartao if c['id'] != desp['id']]
+                    salvar_dados(silencioso=True)
                     st.rerun()
 
         total_cartao = sum(d['valor_parcela'] for d in despesas_deste_cartao_neste_mes)
