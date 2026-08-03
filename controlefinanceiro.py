@@ -3,17 +3,23 @@ import pandas as pd
 from datetime import datetime
 import uuid
 import json
-import requests
+from supabase import create_client, Client
 
 # Configuração da página
 st.set_page_config(page_title="Controle Financeiro", layout="wide")
 
-# --- Configurações do Banco de Dados na Nuvem (JSONBin.io) ---
-# Mantenha seu BIN_ID e API_KEY entre aspas:
-JSONBIN_BIN_ID = "6a6d0293da38895dfeaa20e1"
-JSONBIN_API_KEY = "$2a$10$4./MIWg993cRRH0a/7mcOut9oKOzNCVWm0qG0ebC8xeX5FnnDA/BG"
+# --- Configurações do Banco de Dados Supabase ---
+SUPABASE_URL = "SUA_PROJECT_URL_AQUI"
+SUPABASE_KEY = "SUA_API_KEY_AQUI"
 
-URL_NUVEM = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
+@st.cache_resource
+def init_supabase() -> Client:
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+try:
+    supabase = init_supabase()
+except Exception as e:
+    st.error("Configure as chaves do Supabase no topo do código!")
 
 # Estilização CSS para Alinhamento Perfeito e Espaçamento Justinho
 st.markdown("""
@@ -92,23 +98,17 @@ def get_month_name(date_str):
     y, m = map(int, date_str.split('-'))
     return f"{meses[m]} {y}"
 
-# --- 2. Sistema de Salvar/Carregar Dados na NUVEM ---
+# --- 2. Sistema de Salvar/Carregar Dados no SUPABASE ---
 def carregar_dados():
-    if JSONBIN_BIN_ID == "SEU_BIN_ID_AQUI":
-        return None
-    headers = {'X-Master-Key': JSONBIN_API_KEY}
     try:
-        req = requests.get(URL_NUVEM, headers=headers)
-        if req.status_code == 200:
-            return req.json().get('record', {})
+        response = supabase.table("dados_financeiros").select("conteudo").eq("id", "principal").execute()
+        if response.data and len(response.data) > 0:
+            return response.data[0].get("conteudo", {})
     except Exception as e:
-        st.error(f"Erro ao carregar dados da nuvem: {e}")
+        st.error(f"Erro ao carregar dados do Supabase: {e}")
     return None
 
 def salvar_dados(silencioso=False):
-    if JSONBIN_BIN_ID == "SEU_BIN_ID_AQUI":
-        return
-        
     dados = {
         "salario_fixo": st.session_state.salario_fixo,
         "rendas_extras": st.session_state.rendas_extras,
@@ -120,16 +120,12 @@ def salvar_dados(silencioso=False):
         "antecipacoes": st.session_state.get("antecipacoes", {})
     }
     
-    headers = {
-        'Content-Type': 'application/json',
-        'X-Master-Key': JSONBIN_API_KEY
-    }
     try:
-        req = requests.put(URL_NUVEM, json=dados, headers=headers)
-        if req.status_code == 200 and not silencioso:
-            st.toast('Progresso salvo na nuvem com sucesso!', icon='✅')
+        supabase.table("dados_financeiros").upsert({"id": "principal", "conteudo": dados}).execute()
+        if not silencioso:
+            st.toast('Progresso salvo no Supabase com sucesso!', icon='✅')
     except Exception as e:
-        st.error(f"Erro ao salvar na nuvem: {e}")
+        st.error(f"Erro ao salvar no Supabase: {e}")
 
 # --- Inicialização do Session State ---
 if 'dados_iniciados' not in st.session_state:
@@ -252,7 +248,6 @@ total_receitas = st.session_state.salario_fixo + sum(r['valor'] for r in rendas_
 
 total_fixas = sum(c['valor'] for c in st.session_state.contas_fixas)
 total_fixas_pagas = sum(c['valor'] for c in st.session_state.contas_fixas if st.session_state.pagamentos_fixas.get(f"{mes_view}_{c['id']}", False))
-total_fixas_pendentes = total_fixas - total_fixas_pagas
 
 despesas_cartao_mes = []
 for compra in st.session_state.compras_cartao:
@@ -373,7 +368,6 @@ for idx, cartao in enumerate(st.session_state.cartoes):
         chave_pago_cartao = f"{mes_view}_{cartao['id']}"
         is_cartao_pago = st.session_state.pagamentos_cartoes.get(chave_pago_cartao, False)
         
-        # Checkbox de pagamento da fatura do cartão
         novo_status_cartao = st.checkbox(f"💳 **{cartao['nome']}**", value=is_cartao_pago, key=f"chk_cartao_{chave_pago_cartao}")
         if novo_status_cartao != is_cartao_pago:
             st.session_state.pagamentos_cartoes[chave_pago_cartao] = novo_status_cartao
