@@ -388,7 +388,7 @@ for idx, cartao in enumerate(st.session_state.cartoes):
         is_cartao_pago = st.session_state.pagamentos_cartoes.get(chave_pago_cartao, False)
         despesas_deste_cartao_neste_mes = [d for d in despesas_cartao_mes if d['cartao_id'] == cartao['id']]
         
-        with st.expander(f"💳 Ver Gastos ({cartao['nome']})", expanded=True):
+        with st.expander(f"💳 {cartao['nome']}", expanded=True):
             novo_status_cartao = st.checkbox(f"✅ **Fatura Paga ({cartao['nome']})**", value=is_cartao_pago, key=f"chk_cartao_{chave_pago_cartao}")
             if novo_status_cartao != is_cartao_pago:
                 st.session_state.pagamentos_cartoes[chave_pago_cartao] = novo_status_cartao
