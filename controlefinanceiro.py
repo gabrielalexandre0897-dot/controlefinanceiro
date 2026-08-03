@@ -361,7 +361,7 @@ cols_despesas = st.columns(num_cols)
 
 # ---> Coluna 1: Contas Fixas <---
 with cols_despesas[0]:
-    with st.expander("🏠 Ver Contas Fixas", expanded=True):
+    with st.expander("🏠 Contas Fixas", expanded=True):
         for conta in st.session_state.contas_fixas:
             c_chk, c_del = st.columns([5, 1])
             chave_pagamento = f"{mes_view}_{conta['id']}"
